@@ -62,3 +62,10 @@
 - [x] Add username/password fields to Settings UI with show/hide toggle
 - [x] Write vitest tests for auth header generation (8 tests)
 - [x] Test and checkpoint (22 tests passing)
+
+## Phase 7: Sidebar Cleanup — Use or Remove Tabs
+- [x] Decide which sidebar tabs to keep vs remove (kept 5: Dashboard, Ports, Threats, Connections, Settings)
+- [x] Convert sidebar from section-switcher to page navigator (routes + scroll-to)
+- [x] Build scroll-to-section behavior for Ports, Threats, Connections
+- [x] Removed 4 dead stubs: Alerts, Banned IPs, AlienVault, Live Monitor
+- [x] Test and checkpoint (22 tests passing)

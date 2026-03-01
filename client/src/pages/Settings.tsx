@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { GlassCard } from "@/components/GlassCard";
+import { Sidebar } from "@/components/Sidebar";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
@@ -151,7 +152,9 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background grid-pattern relative">
       <div className="fixed inset-0 bg-gradient-to-b from-background/30 via-background/80 to-background pointer-events-none z-0" />
 
-      <main className="relative z-10 min-h-screen">
+      <Sidebar activeSection="settings" />
+
+      <main className="ml-[64px] relative z-10 min-h-screen">
         <div className="max-w-3xl mx-auto px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">

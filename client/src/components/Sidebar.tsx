@@ -1,7 +1,7 @@
 /**
  * Sidebar — Glass Cockpit navigation panel
  * Design: Compact 64px icon mode, expandable to 240px
- * Obsidian Glass tokens: --sidebar, gold accent on active items
+ * 5 items: Dashboard (top), Ports/Threats/Connections (scroll-to), Settings (page)
  */
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -12,35 +12,65 @@ import {
   BarChart3,
   Globe,
   Network,
-  AlertTriangle,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Activity,
-  Lock,
-  Eye,
 } from "lucide-react";
 
-const navItems = [
-  { icon: Shield, label: "Dashboard", id: "dashboard", active: true },
-  { icon: BarChart3, label: "Port Statistics", id: "ports" },
-  { icon: Globe, label: "Threat Map", id: "threats" },
-  { icon: Network, label: "Connections", id: "connections" },
-  { icon: AlertTriangle, label: "Alerts", id: "alerts" },
-  { icon: Lock, label: "Banned IPs", id: "banned" },
-  { icon: Eye, label: "AlienVault", id: "alienvault" },
-  { icon: Activity, label: "Live Monitor", id: "monitor" },
-  { icon: Settings, label: "Settings", id: "settings" },
+export type SidebarItem = {
+  icon: typeof Shield;
+  label: string;
+  id: string;
+  /** If set, navigates to this route instead of scrolling */
+  route?: string;
+  /** If set, scrolls to this element ID on the dashboard */
+  scrollTo?: string;
+};
+
+const navItems: SidebarItem[] = [
+  { icon: Shield, label: "Dashboard", id: "dashboard", route: "/" },
+  { icon: BarChart3, label: "Port Statistics", id: "ports", scrollTo: "section-ports" },
+  { icon: Globe, label: "Threat Map", id: "threats", scrollTo: "section-threats" },
+  { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections" },
+  { icon: Settings, label: "Settings", id: "settings", route: "/settings" },
 ];
 
 interface SidebarProps {
-  activeSection: string;
-  onSectionChange: (id: string) => void;
+  activeSection?: string;
 }
 
-export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+export function Sidebar({ activeSection = "dashboard" }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+
+  const handleClick = (item: SidebarItem) => {
+    if (item.route) {
+      navigate(item.route);
+    } else if (item.scrollTo) {
+      // If we're not on the dashboard, navigate there first
+      if (location !== "/") {
+        navigate("/");
+        // Wait for the page to render, then scroll
+        setTimeout(() => {
+          const el = document.getElementById(item.scrollTo!);
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      } else {
+        const el = document.getElementById(item.scrollTo);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  };
+
+  // Determine active item based on route or section
+  const getIsActive = (item: SidebarItem) => {
+    if (item.route === "/settings" && location === "/settings") return true;
+    if (item.route === "/" && location === "/" && activeSection === "dashboard") return true;
+    if (item.scrollTo && activeSection === item.id) return true;
+    // Default: dashboard is active on home page
+    if (item.id === "dashboard" && location === "/" && !activeSection) return true;
+    return false;
+  };
 
   return (
     <motion.aside
@@ -82,17 +112,11 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       {/* Nav Items */}
       <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-hidden">
         {navItems.map((item) => {
-          const isActive = activeSection === item.id;
+          const isActive = getIsActive(item);
           return (
             <button
               key={item.id}
-              onClick={() => {
-                if (item.id === "settings") {
-                  navigate("/settings");
-                } else {
-                  onSectionChange(item.id);
-                }
-              }}
+              onClick={() => handleClick(item)}
               className={cn(
                 "flex items-center gap-3 rounded-lg transition-all duration-200",
                 "relative group",

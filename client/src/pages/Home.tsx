@@ -6,8 +6,8 @@
  *
  * All chart components receive data via props from useSkynetStats.
  * Shows loading skeletons while waiting for live data from the router.
+ * Section IDs enable smooth-scroll navigation from the sidebar.
  */
-import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { KpiCard } from "@/components/KpiCard";
@@ -29,7 +29,6 @@ import {
   MapSkeleton,
 } from "@/components/DashboardSkeletons";
 import { useSkynetStats } from "@/hooks/useSkynetStats";
-import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -46,18 +45,7 @@ const HERO_BG =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663252172531/4K4AhZ9R9x8zpv2SdeL5Bz/hero-bg-mi2aViN66MoWoiQ3BpV4R2.webp";
 
 export default function Home() {
-  const [activeSection, setActiveSection] = useState("dashboard");
   const skynet = useSkynetStats();
-
-  const handleSectionChange = (id: string) => {
-    setActiveSection(id);
-    if (id !== "dashboard") {
-      toast("Feature coming soon", {
-        description: `The ${id} section is under development`,
-      });
-    }
-  };
-
   const { kpiData } = skynet;
 
   // Show full skeleton when initial load is happening with a configured router
@@ -78,7 +66,7 @@ export default function Home() {
       <div className="fixed inset-0 bg-gradient-to-b from-background/30 via-background/80 to-background pointer-events-none z-0" />
 
       {/* Sidebar */}
-      <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+      <Sidebar activeSection="dashboard" />
 
       {/* Main Content */}
       <main className="ml-[64px] relative z-10 min-h-screen">
@@ -159,39 +147,26 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4 }}
               >
-                {/* KPI Row Skeleton */}
                 <KpiRowSkeleton />
-
-                {/* Primary Charts Row */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
                   <div className="xl:col-span-2">
                     <ChartSkeleton title="Blocked Connections" subtitle="Loading firewall data..." delay={0.1} />
                   </div>
                   <DonutSkeleton title="Attack Types" delay={0.15} />
                 </div>
-
-                {/* Port Stats + Country */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
                   <HBarSkeleton title="Port Statistics" delay={0.2} />
                   <HBarSkeleton title="Threat Origins" delay={0.25} />
                 </div>
-
-                {/* Top Blocks */}
                 <div className="mb-4">
                   <HBarSkeleton title="Top Blocks by IP" delay={0.3} />
                 </div>
-
-                {/* Recent Connections */}
                 <div className="mb-4">
                   <TableSkeleton title="Recent Blocked Connections" rows={6} cols={5} delay={0.35} />
                 </div>
-
-                {/* Threat Map */}
                 <div className="mb-4">
                   <MapSkeleton delay={0.4} />
                 </div>
-
-                {/* Threat Intel Table */}
                 <div className="mb-8">
                   <TableSkeleton title="Threat Intelligence" rows={8} cols={6} delay={0.45} />
                 </div>
@@ -206,89 +181,31 @@ export default function Home() {
               >
                 {/* KPI Row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
-                  <KpiCard
-                    title="IPs Banned"
-                    value={kpiData.ipsBanned}
-                    icon={Shield}
-                    severity="critical"
-                    trend={{ value: 12, positive: false }}
-                    delay={0.05}
-                  />
-                  <KpiCard
-                    title="Ranges Banned"
-                    value={kpiData.rangesBanned}
-                    icon={Layers}
-                    severity="high"
-                    delay={0.1}
-                  />
-                  <KpiCard
-                    title="Inbound Blocks"
-                    value={kpiData.inboundBlocks}
-                    icon={ArrowDownToLine}
-                    severity="medium"
-                    trend={{ value: 8, positive: false }}
-                    delay={0.15}
-                  />
-                  <KpiCard
-                    title="Outbound Blocks"
-                    value={kpiData.outboundBlocks}
-                    icon={ArrowUpFromLine}
-                    severity="low"
-                    delay={0.2}
-                  />
-                  <KpiCard
-                    title="Total Blocks"
-                    value={kpiData.totalBlocks}
-                    icon={Target}
-                    severity="neutral"
-                    delay={0.25}
-                  />
-                  <KpiCard
-                    title="Block Rate"
-                    value={kpiData.blockRate}
-                    icon={Percent}
-                    suffix="%"
-                    severity="neutral"
-                    delay={0.3}
-                  />
-                  <KpiCard
-                    title="Top Threat"
-                    value={kpiData.ipsBanned > 0 ? kpiData.inboundBlocks : 14523}
-                    icon={Globe}
-                    severity="critical"
-                    delay={0.35}
-                  />
-                  <KpiCard
-                    title="Active Rules"
-                    value={kpiData.ipsBanned + kpiData.rangesBanned}
-                    icon={Zap}
-                    severity="neutral"
-                    trend={{ value: 3, positive: true }}
-                    delay={0.4}
-                  />
+                  <KpiCard title="IPs Banned" value={kpiData.ipsBanned} icon={Shield} severity="critical" trend={{ value: 12, positive: false }} delay={0.05} />
+                  <KpiCard title="Ranges Banned" value={kpiData.rangesBanned} icon={Layers} severity="high" delay={0.1} />
+                  <KpiCard title="Inbound Blocks" value={kpiData.inboundBlocks} icon={ArrowDownToLine} severity="medium" trend={{ value: 8, positive: false }} delay={0.15} />
+                  <KpiCard title="Outbound Blocks" value={kpiData.outboundBlocks} icon={ArrowUpFromLine} severity="low" delay={0.2} />
+                  <KpiCard title="Total Blocks" value={kpiData.totalBlocks} icon={Target} severity="neutral" delay={0.25} />
+                  <KpiCard title="Block Rate" value={kpiData.blockRate} icon={Percent} suffix="%" severity="neutral" delay={0.3} />
+                  <KpiCard title="Top Threat" value={kpiData.ipsBanned > 0 ? kpiData.inboundBlocks : 14523} icon={Globe} severity="critical" delay={0.35} />
+                  <KpiCard title="Active Rules" value={kpiData.ipsBanned + kpiData.rangesBanned} icon={Zap} severity="neutral" trend={{ value: 3, positive: true }} delay={0.4} />
                 </div>
 
                 {/* Primary Charts Row — Blocked Connections + Attack Types */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
                   <div className="xl:col-span-2">
-                    <BlockedConnectionsChart
-                      data24h={skynet.blockedConnections24h}
-                      data7d={skynet.blockedConnections7d}
-                    />
+                    <BlockedConnectionsChart data24h={skynet.blockedConnections24h} data7d={skynet.blockedConnections7d} />
                   </div>
                   <ConnectionTypesChart data={skynet.connectionTypes} />
                 </div>
 
-                {/* Port Statistics + Country Distribution */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
-                  <PortHitsChart
-                    inboundPortHits={skynet.inboundPortHits}
-                    sourcePortHits={skynet.sourcePortHits}
-                  />
+                {/* Port Statistics + Country Distribution — scrollTo target */}
+                <div id="section-ports" className="scroll-mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+                  <PortHitsChart inboundPortHits={skynet.inboundPortHits} sourcePortHits={skynet.sourcePortHits} />
                   <CountryDistributionChart data={skynet.countryDistribution} />
                 </div>
 
-                {/* Top Blocks by IP (Inbound/Outbound/Devices/HTTP) */}
+                {/* Top Blocks by IP */}
                 <div className="mb-4">
                   <OutboundBlocksChart
                     topInboundBlocks={skynet.topInboundBlocks}
@@ -298,8 +215,8 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Recent Blocked Connections (Inbound/Outbound/HTTP) */}
-                <div className="mb-4">
+                {/* Recent Blocked Connections — scrollTo target */}
+                <div id="section-connections" className="scroll-mt-6 mb-4">
                   <LiveConnectionsTable
                     inboundConnections={skynet.lastInboundConnections}
                     outboundConnections={skynet.lastOutboundConnections}
@@ -307,8 +224,8 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Threat Map */}
-                <div className="mb-4">
+                {/* Threat Map — scrollTo target */}
+                <div id="section-threats" className="scroll-mt-6 mb-4">
                   <ThreatMapPanel countryData={skynet.countryDistribution} />
                 </div>
 
