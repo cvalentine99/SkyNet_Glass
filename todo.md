@@ -141,3 +141,33 @@
 ### Test & Deliver
 - [x] Write vitest tests for ban/unban and history (12 tests)
 - [x] Checkpoint and deliver (34 tests passing)
+
+## Phase 11: Whitelist Management, Advanced Ban/Unban, Firewall Controls
+
+### Backend — New tRPC Routes
+- [x] skynet.whitelistIP — whitelist ip X "comment"
+- [x] skynet.whitelistDomain — whitelist domain X "comment"
+- [x] skynet.removeWhitelistIP / removeWhitelistDomain — whitelist remove ip/domain X
+- [x] skynet.banRange — ban range X.X.X.X/CIDR "comment"
+- [x] skynet.banDomain — ban domain example.com
+- [x] skynet.banCountry — ban country CC CC ...
+- [x] skynet.unbanRange — unban range X.X.X.X/CIDR
+- [x] skynet.unbanDomain — unban domain example.com
+- [x] skynet.unbanBulk — unban malware / nomanual / country / all
+- [x] skynet.refreshWhitelist — whitelist refresh
+- [x] Validation for CIDR ranges, domain names, and country codes
+
+### Frontend — Firewall Management Page
+- [x] Create /manage route with Firewall Management page
+- [x] Add "Manage" tab to sidebar (between Connections and Settings, shortcut 5)
+- [x] Whitelist section: add IP/domain to whitelist with comment + refresh shared whitelists
+- [x] Ban section: ban IP/range/domain/country with comment
+- [x] Unban section: unban IP/range/domain
+- [x] Bulk Unban section: unban malware/non-manual/countries/all with confirmation
+- [x] Remove from whitelist section
+- [x] Command Reference documentation section
+- [x] Warning banner about real-time command execution
+
+### Tests
+- [x] Write vitest tests for new ban/unban/whitelist commands (44 tests)
+- [x] Verify all tests pass (78 total tests, 5 test files)

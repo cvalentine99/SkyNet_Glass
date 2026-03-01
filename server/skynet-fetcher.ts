@@ -284,6 +284,203 @@ export async function unbanIP(ip: string): Promise<{
   return executeRouterCommand(cmd);
 }
 
+// ─── Advanced Ban Commands ─────────────────────────────────
+
+/**
+ * Ban an IP range via Skynet.
+ * Executes: firewall ban range X.X.X.X/CIDR "comment"
+ */
+export async function banRange(range: string, comment?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(range)) {
+    return { success: false, error: `Invalid CIDR range: ${range}` };
+  }
+
+  const desc = comment || `Banned via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  const safeComment = desc.replace(/[;"'\`$\\|&<>]/g, "").slice(0, 200);
+
+  const cmd = `/jffs/scripts/firewall ban range ${range} "${safeComment}"`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Ban a domain via Skynet (resolves all IPs and bans them).
+ * Executes: firewall ban domain example.com
+ */
+export async function banDomain(domain: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  // Basic domain validation
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall ban domain ${domain}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Ban by country code(s) via Skynet.
+ * Executes: firewall ban country CC CC ...
+ */
+export async function banCountry(countryCodes: string[]): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  const validCodes = countryCodes
+    .map(c => c.toLowerCase().trim())
+    .filter(c => /^[a-z]{2}$/.test(c));
+
+  if (validCodes.length === 0) {
+    return { success: false, error: "No valid 2-letter country codes provided" };
+  }
+
+  const cmd = `/jffs/scripts/firewall ban country ${validCodes.join(" ")}`;
+  return executeRouterCommand(cmd);
+}
+
+// ─── Advanced Unban Commands ───────────────────────────────
+
+/**
+ * Unban an IP range via Skynet.
+ * Executes: firewall unban range X.X.X.X/CIDR
+ */
+export async function unbanRange(range: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(range)) {
+    return { success: false, error: `Invalid CIDR range: ${range}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall unban range ${range}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Unban a domain via Skynet.
+ * Executes: firewall unban domain example.com
+ */
+export async function unbanDomain(domain: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall unban domain ${domain}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Bulk unban by category via Skynet.
+ * Supported categories:
+ *   - "malware" → unban malware (removes malware list bans)
+ *   - "nomanual" → unban nomanual (removes all non-manual bans)
+ *   - "country" → unban country (removes country bans)
+ *   - "all" → unban all (removes ALL bans)
+ */
+export async function unbanBulk(category: "malware" | "nomanual" | "country" | "all"): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  const validCategories = ["malware", "nomanual", "country", "all"];
+  if (!validCategories.includes(category)) {
+    return { success: false, error: `Invalid unban category: ${category}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall unban ${category}`;
+  return executeRouterCommand(cmd);
+}
+
+// ─── Whitelist Commands ────────────────────────────────────
+
+/**
+ * Add an IP to the Skynet whitelist.
+ * Executes: firewall whitelist ip X.X.X.X "comment"
+ */
+export async function whitelistIP(ip: string, comment?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+
+  const desc = comment || `Whitelisted via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  const safeComment = desc.replace(/[;"'\`$\\|&<>]/g, "").slice(0, 200);
+
+  const cmd = `/jffs/scripts/firewall whitelist ip ${ip} "${safeComment}"`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Add a domain to the Skynet whitelist.
+ * Executes: firewall whitelist domain example.com "comment"
+ */
+export async function whitelistDomain(domain: string, comment?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+
+  const desc = comment || `Whitelisted via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  const safeComment = desc.replace(/[;"'\`$\\|&<>]/g, "").slice(0, 200);
+
+  const cmd = `/jffs/scripts/firewall whitelist domain ${domain} "${safeComment}"`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Remove an IP from the Skynet whitelist.
+ * Executes: firewall whitelist remove ip X.X.X.X
+ */
+export async function removeWhitelistIP(ip: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall whitelist remove ip ${ip}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Remove a domain from the Skynet whitelist.
+ * Executes: firewall whitelist remove domain example.com
+ */
+export async function removeWhitelistDomain(domain: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall whitelist remove domain ${domain}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Refresh the Skynet shared whitelists.
+ * Executes: firewall whitelist refresh
+ */
+export async function refreshWhitelist(): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  const cmd = `/jffs/scripts/firewall whitelist refresh`;
+  return executeRouterCommand(cmd);
+}
+
 // ─── Polling Manager ────────────────────────────────────────
 
 export async function startPolling(): Promise<void> {

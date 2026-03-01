@@ -14,6 +14,17 @@ import {
   triggerRouterGenstats,
   banIP,
   unbanIP,
+  banRange,
+  banDomain,
+  banCountry,
+  unbanRange,
+  unbanDomain,
+  unbanBulk,
+  whitelistIP,
+  whitelistDomain,
+  removeWhitelistIP,
+  removeWhitelistDomain,
+  refreshWhitelist,
 } from "./skynet-fetcher";
 
 export const appRouter = router({
@@ -148,6 +159,130 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return await unbanIP(input.ip);
       }),
+
+    // ─── Advanced Ban ──────────────────────────────────────────
+
+    /** Ban an IP range via Skynet */
+    banRange: publicProcedure
+      .input(
+        z.object({
+          range: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/, "Invalid CIDR range"),
+          comment: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await banRange(input.range, input.comment);
+      }),
+
+    /** Ban a domain via Skynet (resolves all IPs) */
+    banDomain: publicProcedure
+      .input(
+        z.object({
+          domain: z.string().min(3, "Domain is required"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await banDomain(input.domain);
+      }),
+
+    /** Ban by country code(s) via Skynet */
+    banCountry: publicProcedure
+      .input(
+        z.object({
+          countryCodes: z.array(z.string().length(2)).min(1, "At least one country code required"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await banCountry(input.countryCodes);
+      }),
+
+    // ─── Advanced Unban ────────────────────────────────────────
+
+    /** Unban an IP range via Skynet */
+    unbanRange: publicProcedure
+      .input(
+        z.object({
+          range: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/, "Invalid CIDR range"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await unbanRange(input.range);
+      }),
+
+    /** Unban a domain via Skynet */
+    unbanDomain: publicProcedure
+      .input(
+        z.object({
+          domain: z.string().min(3, "Domain is required"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await unbanDomain(input.domain);
+      }),
+
+    /** Bulk unban by category via Skynet */
+    unbanBulk: publicProcedure
+      .input(
+        z.object({
+          category: z.enum(["malware", "nomanual", "country", "all"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await unbanBulk(input.category);
+      }),
+
+    // ─── Whitelist ─────────────────────────────────────────────
+
+    /** Add an IP to the Skynet whitelist */
+    whitelistIP: publicProcedure
+      .input(
+        z.object({
+          ip: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address"),
+          comment: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await whitelistIP(input.ip, input.comment);
+      }),
+
+    /** Add a domain to the Skynet whitelist */
+    whitelistDomain: publicProcedure
+      .input(
+        z.object({
+          domain: z.string().min(3, "Domain is required"),
+          comment: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await whitelistDomain(input.domain, input.comment);
+      }),
+
+    /** Remove an IP from the Skynet whitelist */
+    removeWhitelistIP: publicProcedure
+      .input(
+        z.object({
+          ip: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await removeWhitelistIP(input.ip);
+      }),
+
+    /** Remove a domain from the Skynet whitelist */
+    removeWhitelistDomain: publicProcedure
+      .input(
+        z.object({
+          domain: z.string().min(3, "Domain is required"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await removeWhitelistDomain(input.domain);
+      }),
+
+    /** Refresh Skynet shared whitelists */
+    refreshWhitelist: publicProcedure.mutation(async () => {
+      return await refreshWhitelist();
+    }),
 
     // ─── Historical Stats ─────────────────────────────────────
 
