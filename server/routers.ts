@@ -36,6 +36,10 @@ import {
   fetchSyslog,
   fetchIpsetData,
   bulkBanImport,
+  banDomain,
+  unbanDomain,
+  banCountry,
+  unbanBulk,
   fetchDnsmasqLog,
   fetchDhcpLeases,
   iotBanDevice,
@@ -212,7 +216,7 @@ export const appRouter = router({
         return await banRange(input.range, input.comment);
       }),
 
-    /** Ban a domain via Skynet (resolves all IPs) */
+    /** Ban a domain via Skynet */
     banDomain: publicProcedure
       .input(
         z.object({
@@ -221,9 +225,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        return await whitelistDomain(input.domain, input.comment);
-        // Note: Skynet doesn't have a direct "ban domain" — use whitelist domain for domain-level ops
-        // For actual domain banning, use the firewall ban command with resolved IPs
+        return await banDomain(input.domain, input.comment);
       }),
 
     /** Ban by country code(s) via Skynet */
@@ -234,13 +236,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // Execute country ban via Skynet's firewall command
-        const results: Array<{ code: string; success: boolean; error: string | null }> = [];
-        for (const code of input.countryCodes) {
-          const result = await banRange(`country_${code}` as any, `Country ban: ${code}`);
-          results.push({ code, success: result.success, error: result.error });
-        }
-        return { success: results.every(r => r.success), results };
+        return await banCountry(input.countryCodes);
       }),
 
     // ─── Advanced Unban ────────────────────────────────────────
@@ -264,7 +260,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        return await removeWhitelistDomain(input.domain);
+        return await unbanDomain(input.domain);
       }),
 
     /** Bulk unban by category via Skynet */
@@ -275,13 +271,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // Skynet's firewall unban command with category
-        const { sshExec } = await import("./skynet-ssh");
-        const config = await getSkynetConfig();
-        if (!config) return { success: false, error: "No router config" };
-        const ssh = { host: config.routerAddress, port: config.sshPort ?? 22, username: config.username || "admin", password: config.password || undefined };
-        const result = await sshExec(ssh, `/jffs/scripts/firewall unban ${input.category}`, { timeout: 30000 });
-        return { success: result.code === 0, error: result.stderr || null };
+        return await unbanBulk(input.category);
       }),
 
     // ─── Whitelist ─────────────────────────────────────────────

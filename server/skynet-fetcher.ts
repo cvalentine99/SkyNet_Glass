@@ -293,6 +293,68 @@ export async function unbanRange(cidr: string): Promise<{
   return { success: result.success, error: result.error };
 }
 
+// ─── Domain Ban/Unban ─────────────────────────────────────
+
+export async function banDomain(domain: string, comment?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+  const desc = comment || `Domain banned via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  const safeComment = desc.replace(/[;"'`$\\|&<>]/g, "").slice(0, 200);
+  const cmd = `/jffs/scripts/firewall ban domain ${domain} "${safeComment}"`;
+  const result = await executeRouterCommand(cmd);
+  return { success: result.success, error: result.error };
+}
+
+export async function unbanDomain(domain: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+    return { success: false, error: `Invalid domain: ${domain}` };
+  }
+  const cmd = `/jffs/scripts/firewall unban domain ${domain}`;
+  const result = await executeRouterCommand(cmd);
+  return { success: result.success, error: result.error };
+}
+
+// ─── Country Ban/Unban ────────────────────────────────────
+
+export async function banCountry(countryCodes: string[]): Promise<{
+  success: boolean;
+  results: Array<{ code: string; success: boolean; error: string | null }>;
+}> {
+  const results: Array<{ code: string; success: boolean; error: string | null }> = [];
+  for (const code of countryCodes) {
+    if (!/^[A-Z]{2}$/.test(code)) {
+      results.push({ code, success: false, error: `Invalid country code: ${code}` });
+      continue;
+    }
+    const cmd = `/jffs/scripts/firewall ban country ${code}`;
+    const result = await executeRouterCommand(cmd);
+    results.push({ code, success: result.success, error: result.error });
+    // Delay between country bans to avoid overwhelming the router
+    if (countryCodes.indexOf(code) < countryCodes.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  return { success: results.every(r => r.success), results };
+}
+
+// ─── Bulk Unban ───────────────────────────────────────────
+
+export async function unbanBulk(category: "malware" | "nomanual" | "country" | "all"): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  const cmd = `/jffs/scripts/firewall unban ${category}`;
+  const result = await executeRouterCommand(cmd);
+  return { success: result.success, error: result.error };
+}
+
 // ─── Whitelist ──────────────────────────────────────────────
 
 export async function whitelistIP(ip: string, comment?: string): Promise<{

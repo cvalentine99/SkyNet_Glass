@@ -593,3 +593,12 @@
 - [x] Production build: clean (118KB dist/index.js)
 - [x] Browser verified: Dashboard, Settings (SSH form), Topology, Manage all render correctly
 - [ ] Push to GitHub
+
+## Phase 29: Fix Broken Route Wiring (banDomain, banCountry, unbanDomain)
+- [x] Bug 1: banDomain now calls `/jffs/scripts/firewall ban domain` (was calling whitelistDomain)
+- [x] Bug 2: banCountry now calls `/jffs/scripts/firewall ban country XX` (was passing fake CIDR to banRange)
+- [x] Added banDomain, unbanDomain, banCountry, unbanBulk to skynet-fetcher.ts
+- [x] Fixed unbanDomain route (was calling removeWhitelistDomain, now calls unbanDomain)
+- [x] Fixed unbanBulk route (was inline SSH, now uses exported unbanBulk function)
+- [x] All 297 tests pass, production build clean (118KB)
+- [ ] Push to GitHub
