@@ -25,9 +25,9 @@ import {
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const [routerAddress, setRouterAddress] = useState("192.168.1.1");
-  const [routerPort, setRouterPort] = useState(80);
-  const [routerProtocol, setRouterProtocol] = useState<"http" | "https">("http");
+  const [routerAddress, setRouterAddress] = useState("192.168.50.1");
+  const [routerPort, setRouterPort] = useState(8443);
+  const [routerProtocol, setRouterProtocol] = useState<"http" | "https">("https");
   const [statsPath, setStatsPath] = useState("/ext/skynet/stats.js");
   const [pollingInterval, setPollingInterval] = useState(300);
   const [pollingEnabled, setPollingEnabled] = useState(true);

@@ -27,5 +27,21 @@
 
 ## Phase 3: Deliver
 - [x] Final test pass (14 tests passing)
-- [ ] Checkpoint
-- [ ] Deliver to user
+- [x] Checkpoint (1c4744f0)
+- [x] Deliver to user
+
+## Phase 4: Wire All Charts to Live Data
+- [x] Audit all components for hardcoded sample data imports
+- [x] BlockedConnectionsChart — accept data via props
+- [x] ConnectionTypesChart — accept data via props
+- [x] CountryDistributionChart — accept data via props
+- [x] PortHitsChart — accept data via props
+- [x] OutboundBlocksChart — accept data via props
+- [x] LiveConnectionsTable — accept data via props
+- [x] ThreatTable — accept data via props
+- [x] ThreatMapPanel — accept data via props
+- [x] KpiCard row — already wired, verified
+- [x] Update Home.tsx to pass all live data from useSkynetStats
+- [x] Update useSkynetStats to provide data for all chart types
+- [x] Test and checkpoint (14 tests passing)
+- [x] Update default router config: address=192.168.50.1, port=8443, protocol=https

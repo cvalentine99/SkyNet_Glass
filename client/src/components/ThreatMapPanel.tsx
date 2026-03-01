@@ -1,16 +1,26 @@
 /**
  * ThreatMapPanel — World threat map visualization
  * Design: Glass Cockpit — dark world map with glowing threat dots
- * Uses the generated threat-map-bg image as a visual backdrop
+ * Accepts data via props; no direct sample data import.
  */
 import { motion } from "framer-motion";
-import { countryDistribution, chartColors } from "@/lib/data";
 
 const THREAT_MAP_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663252172531/4K4AhZ9R9x8zpv2SdeL5Bz/threat-map-bg-CZ4ntoCeJFouTqxXLHNzWj.webp";
 
-export function ThreatMapPanel() {
-  const topCountries = countryDistribution.slice(0, 5);
+interface CountryData {
+  country: string;
+  code: string;
+  blocks: number;
+  percentage: number;
+}
+
+interface ThreatMapPanelProps {
+  countryData: CountryData[];
+}
+
+export function ThreatMapPanel({ countryData }: ThreatMapPanelProps) {
+  const topCountries = countryData.slice(0, 5);
 
   return (
     <motion.div
@@ -26,15 +36,15 @@ export function ThreatMapPanel() {
         </div>
         <div className="flex items-center gap-3 text-[10px]">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: chartColors.red }} />
+            <div className="w-2 h-2 rounded-full" style={{ background: "#E74C3C" }} />
             <span className="text-muted-foreground">Critical</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: chartColors.gold }} />
+            <div className="w-2 h-2 rounded-full" style={{ background: "#C9A962" }} />
             <span className="text-muted-foreground">High</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: chartColors.cyan }} />
+            <div className="w-2 h-2 rounded-full" style={{ background: "#4ECDC4" }} />
             <span className="text-muted-foreground">Medium</span>
           </div>
         </div>

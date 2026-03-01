@@ -3,6 +3,9 @@
  * Design: Glass Cockpit — multi-panel dashboard with sidebar navigation
  * Layout: Compact sidebar + responsive grid main content
  * Ultrawide optimized: 3-col on >1600px, 2-col on desktop, 1-col on mobile
+ *
+ * All chart components receive data via props from useSkynetStats.
+ * No component imports sample data directly.
  */
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
@@ -164,35 +167,50 @@ export default function Home() {
           {/* Primary Charts Row — Blocked Connections + Attack Types */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
             <div className="xl:col-span-2">
-              <BlockedConnectionsChart />
+              <BlockedConnectionsChart
+                data24h={skynet.blockedConnections24h}
+                data7d={skynet.blockedConnections7d}
+              />
             </div>
-            <ConnectionTypesChart />
+            <ConnectionTypesChart data={skynet.connectionTypes} />
           </div>
 
           {/* Port Statistics + Country Distribution */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
-            <PortHitsChart />
-            <CountryDistributionChart />
+            <PortHitsChart
+              inboundPortHits={skynet.inboundPortHits}
+              sourcePortHits={skynet.sourcePortHits}
+            />
+            <CountryDistributionChart data={skynet.countryDistribution} />
           </div>
 
           {/* Top Blocks by IP (Inbound/Outbound/Devices/HTTP) */}
           <div className="mb-4">
-            <OutboundBlocksChart />
+            <OutboundBlocksChart
+              topInboundBlocks={skynet.topInboundBlocks}
+              topOutboundBlocks={skynet.topOutboundBlocks}
+              topBlockedDevices={skynet.topBlockedDevices}
+              topHttpBlocks={skynet.topHttpBlocks}
+            />
           </div>
 
           {/* Recent Blocked Connections (Inbound/Outbound/HTTP) */}
           <div className="mb-4">
-            <LiveConnectionsTable />
+            <LiveConnectionsTable
+              inboundConnections={skynet.lastInboundConnections}
+              outboundConnections={skynet.lastOutboundConnections}
+              httpConnections={skynet.lastHttpConnections}
+            />
           </div>
 
           {/* Threat Map */}
           <div className="mb-4">
-            <ThreatMapPanel />
+            <ThreatMapPanel countryData={skynet.countryDistribution} />
           </div>
 
           {/* Threat Intelligence Table */}
           <div className="mb-8">
-            <ThreatTable />
+            <ThreatTable data={skynet.blockedIPs} />
           </div>
 
           {/* Footer */}

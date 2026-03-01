@@ -1,6 +1,7 @@
 /**
  * CountryDistributionChart — Horizontal bar chart for threat origins by country
  * Design: Glass Cockpit — severity-graded bars
+ * Accepts data via props; no direct sample data import.
  */
 import { motion } from "framer-motion";
 import {
@@ -13,15 +14,25 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { countryDistribution, chartColors } from "@/lib/data";
 
-const barColors = [
-  chartColors.red, chartColors.red,
-  chartColors.amber, chartColors.amber,
-  chartColors.gold, chartColors.gold,
-  chartColors.cyan, chartColors.cyan,
-  chartColors.green, chartColors.slate,
+const BAR_COLORS = [
+  "#E74C3C", "#E74C3C",
+  "#D4A843", "#D4A843",
+  "#C9A962", "#C9A962",
+  "#4ECDC4", "#4ECDC4",
+  "#45B764", "#64748B",
 ];
+
+export interface CountryData {
+  country: string;
+  code: string;
+  blocks: number;
+  percentage: number;
+}
+
+interface CountryDistributionChartProps {
+  data: CountryData[];
+}
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
@@ -47,7 +58,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   );
 };
 
-export function CountryDistributionChart() {
+export function CountryDistributionChart({ data }: CountryDistributionChartProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -62,7 +73,7 @@ export function CountryDistributionChart() {
 
       <ResponsiveContainer width="100%" height={320}>
         <BarChart
-          data={countryDistribution}
+          data={data}
           layout="vertical"
           margin={{ top: 0, right: 20, left: 5, bottom: 0 }}
         >
@@ -83,8 +94,8 @@ export function CountryDistributionChart() {
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
           <Bar dataKey="blocks" radius={[0, 4, 4, 0]} maxBarSize={20}>
-            {countryDistribution.map((_, index) => (
-              <Cell key={index} fill={barColors[index]} fillOpacity={0.8} />
+            {data.map((_, index) => (
+              <Cell key={index} fill={BAR_COLORS[index] || "#64748B"} fillOpacity={0.8} />
             ))}
           </Bar>
         </BarChart>

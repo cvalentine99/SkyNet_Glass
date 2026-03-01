@@ -1,6 +1,7 @@
 /**
  * ConnectionTypesChart — Donut chart for attack type distribution
  * Design: Glass Cockpit — security-focused color palette
+ * Accepts data via props; no direct sample data import.
  */
 import { motion } from "framer-motion";
 import {
@@ -11,16 +12,19 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { connectionTypes, chartColors } from "@/lib/data";
 
 const COLORS = [
-  chartColors.red,
-  chartColors.gold,
-  chartColors.cyan,
-  chartColors.green,
-  chartColors.amber,
-  chartColors.slate,
+  "#E74C3C", // red
+  "#C9A962", // gold
+  "#4ECDC4", // cyan
+  "#45B764", // green
+  "#D4A843", // amber
+  "#64748B", // slate
 ];
+
+interface ConnectionTypesChartProps {
+  data: { name: string; value: number }[];
+}
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
@@ -32,12 +36,6 @@ const CustomTooltip = ({ active, payload }: any) => {
         <span className="text-muted-foreground">Blocks:</span>
         <span className="font-mono font-medium text-gold tabular-nums">
           {item.value.toLocaleString()}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 mt-0.5">
-        <span className="text-muted-foreground">Share:</span>
-        <span className="font-mono font-medium tabular-nums" style={{ color: item.payload.fill }}>
-          {((item.value / connectionTypes.reduce((a: number, b: { value: number }) => a + b.value, 0)) * 100).toFixed(1)}%
         </span>
       </div>
     </div>
@@ -58,7 +56,7 @@ const renderLegend = (props: any) => {
   );
 };
 
-export function ConnectionTypesChart() {
+export function ConnectionTypesChart({ data }: ConnectionTypesChartProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -74,7 +72,7 @@ export function ConnectionTypesChart() {
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
-            data={connectionTypes}
+            data={data}
             cx="45%"
             cy="50%"
             innerRadius={60}
@@ -84,7 +82,7 @@ export function ConnectionTypesChart() {
             stroke="oklch(0.05 0 0)"
             strokeWidth={2}
           >
-            {connectionTypes.map((_, index) => (
+            {data.map((_, index) => (
               <Cell key={index} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>

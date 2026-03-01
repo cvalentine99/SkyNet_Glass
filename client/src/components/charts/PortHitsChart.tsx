@@ -1,7 +1,7 @@
 /**
  * PortHitsChart — Bar chart for inbound/source port hits
  * Design: Glass Cockpit — gold bars with glass card container
- * Fixed: Proper horizontal bar rendering with correct layout
+ * Accepts data via props; no direct sample data import.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -15,7 +15,25 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { inboundPortHits, sourcePortHits, chartColors } from "@/lib/data";
+
+const CHART_COLORS = {
+  gold: "#C9A962",
+  cyan: "#4ECDC4",
+  green: "#45B764",
+  amber: "#D4A843",
+  slate: "#64748B",
+};
+
+interface PortHit {
+  port: number;
+  hits: number;
+  service?: string;
+}
+
+interface PortHitsChartProps {
+  inboundPortHits: PortHit[];
+  sourcePortHits: PortHit[];
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
@@ -36,23 +54,23 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export function PortHitsChart() {
+export function PortHitsChart({ inboundPortHits, sourcePortHits }: PortHitsChartProps) {
   const [view, setView] = useState<"inbound" | "source">("inbound");
   const [chartType, setChartType] = useState<"horizontal" | "vertical">("horizontal");
 
   const rawData = view === "inbound" ? inboundPortHits : sourcePortHits;
   const data = rawData.slice(0, 10).map(d => ({
     ...d,
-    label: view === "inbound" ? `${d.port} (${(d as any).service || ''})` : `${d.port}`,
+    label: view === "inbound" ? `${d.port} (${d.service || ''})` : `${d.port}`,
   }));
 
   const isHorizontal = chartType === "horizontal";
 
   const barColors = [
-    chartColors.gold, chartColors.gold, chartColors.gold,
-    chartColors.cyan, chartColors.cyan, chartColors.cyan,
-    chartColors.green, chartColors.green,
-    chartColors.amber, chartColors.amber,
+    CHART_COLORS.gold, CHART_COLORS.gold, CHART_COLORS.gold,
+    CHART_COLORS.cyan, CHART_COLORS.cyan, CHART_COLORS.cyan,
+    CHART_COLORS.green, CHART_COLORS.green,
+    CHART_COLORS.amber, CHART_COLORS.amber,
   ];
 
   return (
@@ -124,7 +142,7 @@ export function PortHitsChart() {
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
             <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={20}>
               {data.map((_, index) => (
-                <Cell key={index} fill={barColors[index] || chartColors.slate} fillOpacity={0.85} />
+                <Cell key={index} fill={barColors[index] || CHART_COLORS.slate} fillOpacity={0.85} />
               ))}
             </Bar>
           </BarChart>
@@ -150,7 +168,7 @@ export function PortHitsChart() {
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
             <Bar dataKey="hits" radius={[4, 4, 0, 0]} maxBarSize={32}>
               {data.map((_, index) => (
-                <Cell key={index} fill={barColors[index] || chartColors.slate} fillOpacity={0.85} />
+                <Cell key={index} fill={barColors[index] || CHART_COLORS.slate} fillOpacity={0.85} />
               ))}
             </Bar>
           </BarChart>

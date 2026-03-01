@@ -1,12 +1,11 @@
 /**
  * ThreatTable — Blocked IP threat intelligence table
  * Design: Glass Cockpit — monospace IPs, severity badges, expandable rows
- * Mirrors original Skynet: IP, Ban Reason, AlienVault, Country, Domains
+ * Accepts data via props; no direct sample data import.
  */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { blockedIPs, type BlockedIP } from "@/lib/data";
 import {
   ExternalLink,
   ChevronDown,
@@ -14,6 +13,23 @@ import {
   Search,
   ArrowUpDown,
 } from "lucide-react";
+
+export interface BlockedIP {
+  ip: string;
+  hits: number;
+  country: string;
+  countryCode: string;
+  banReason: string;
+  severity: "critical" | "high" | "medium" | "low";
+  alienVaultUrl: string;
+  associatedDomains: string[];
+  firstSeen: string;
+  lastSeen: string;
+}
+
+interface ThreatTableProps {
+  data: BlockedIP[];
+}
 
 const severityConfig: Record<string, { label: string; className: string; bg: string }> = {
   critical: { label: "CRIT", className: "text-severity-critical", bg: "bg-severity-critical/15" },
@@ -23,7 +39,7 @@ const severityConfig: Record<string, { label: string; className: string; bg: str
 };
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const config = severityConfig[severity];
+  const config = severityConfig[severity] || severityConfig.low;
   return (
     <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wider", config.className, config.bg)}>
       {config.label}
@@ -44,18 +60,22 @@ function ExpandedRow({ ip }: { ip: BlockedIP }) {
           <div>
             <p className="text-muted-foreground mb-1 uppercase tracking-wider text-[10px] font-medium">Associated Domains</p>
             <div className="space-y-0.5">
-              {ip.associatedDomains.map((d, i) => (
-                <p key={i} className="font-mono text-foreground">{d}</p>
-              ))}
+              {ip.associatedDomains.length > 0 ? (
+                ip.associatedDomains.map((d, i) => (
+                  <p key={i} className="font-mono text-foreground">{d}</p>
+                ))
+              ) : (
+                <p className="font-mono text-muted-foreground">—</p>
+              )}
             </div>
           </div>
           <div>
             <p className="text-muted-foreground mb-1 uppercase tracking-wider text-[10px] font-medium">First Seen</p>
-            <p className="font-mono text-foreground">{ip.firstSeen}</p>
+            <p className="font-mono text-foreground">{ip.firstSeen || "—"}</p>
           </div>
           <div>
             <p className="text-muted-foreground mb-1 uppercase tracking-wider text-[10px] font-medium">Last Seen</p>
-            <p className="font-mono text-foreground">{ip.lastSeen}</p>
+            <p className="font-mono text-foreground">{ip.lastSeen || "—"}</p>
           </div>
         </div>
       </td>
@@ -63,15 +83,15 @@ function ExpandedRow({ ip }: { ip: BlockedIP }) {
   );
 }
 
-export function ThreatTable() {
+export function ThreatTable({ data }: ThreatTableProps) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<"hits" | "severity">("hits");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-  const filtered = blockedIPs
+  const filtered = data
     .filter((ip) =>
       ip.ip.includes(searchQuery) ||
       ip.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -81,7 +101,7 @@ export function ThreatTable() {
       if (sortField === "hits") {
         return sortDir === "desc" ? b.hits - a.hits : a.hits - b.hits;
       }
-      const diff = severityOrder[a.severity] - severityOrder[b.severity];
+      const diff = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
       return sortDir === "desc" ? diff : -diff;
     });
 

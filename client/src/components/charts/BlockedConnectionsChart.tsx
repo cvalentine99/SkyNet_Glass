@@ -1,6 +1,7 @@
 /**
  * BlockedConnectionsChart — 24h/7d blocked connections area chart
  * Design: Glass Cockpit — gold/cyan gradient fills on dark background
+ * Accepts data via props; no direct sample data import.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -14,7 +15,16 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { blockedConnections24h, blockedConnections7d, chartColors } from "@/lib/data";
+
+const CHART_COLORS = {
+  gold: "#C9A962",
+  cyan: "#4ECDC4",
+};
+
+interface BlockedConnectionsChartProps {
+  data24h: { time: string; inbound: number; outbound: number }[];
+  data7d: { day: string; inbound: number; outbound: number }[];
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
@@ -34,9 +44,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export function BlockedConnectionsChart() {
+export function BlockedConnectionsChart({ data24h, data7d }: BlockedConnectionsChartProps) {
   const [timeRange, setTimeRange] = useState<"24h" | "7d">("24h");
-  const data = timeRange === "24h" ? blockedConnections24h : blockedConnections7d;
+  const data = timeRange === "24h" ? data24h : data7d;
   const xKey = timeRange === "24h" ? "time" : "day";
 
   return (
@@ -72,12 +82,12 @@ export function BlockedConnectionsChart() {
         <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="gradientInbound" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={chartColors.gold} stopOpacity={0.4} />
-              <stop offset="100%" stopColor={chartColors.gold} stopOpacity={0.02} />
+              <stop offset="0%" stopColor={CHART_COLORS.gold} stopOpacity={0.4} />
+              <stop offset="100%" stopColor={CHART_COLORS.gold} stopOpacity={0.02} />
             </linearGradient>
             <linearGradient id="gradientOutbound" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={chartColors.cyan} stopOpacity={0.3} />
-              <stop offset="100%" stopColor={chartColors.cyan} stopOpacity={0.02} />
+              <stop offset="0%" stopColor={CHART_COLORS.cyan} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={CHART_COLORS.cyan} stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 5%)" vertical={false} />
@@ -102,21 +112,21 @@ export function BlockedConnectionsChart() {
             type="monotone"
             dataKey="inbound"
             name="Inbound"
-            stroke={chartColors.gold}
+            stroke={CHART_COLORS.gold}
             strokeWidth={2}
             fill="url(#gradientInbound)"
             dot={false}
-            activeDot={{ r: 4, fill: chartColors.gold, stroke: "oklch(0.05 0 0)", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: CHART_COLORS.gold, stroke: "oklch(0.05 0 0)", strokeWidth: 2 }}
           />
           <Area
             type="monotone"
             dataKey="outbound"
             name="Outbound"
-            stroke={chartColors.cyan}
+            stroke={CHART_COLORS.cyan}
             strokeWidth={1.5}
             fill="url(#gradientOutbound)"
             dot={false}
-            activeDot={{ r: 3, fill: chartColors.cyan, stroke: "oklch(0.05 0 0)", strokeWidth: 2 }}
+            activeDot={{ r: 3, fill: CHART_COLORS.cyan, stroke: "oklch(0.05 0 0)", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
