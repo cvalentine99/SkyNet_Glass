@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { getSkynetConfig, upsertSkynetConfig } from "./skynet-db";
 import {
+  buildAuthHeaders,
   fetchStatsFromRouter,
   getStats,
   getPollingStatus,
@@ -39,6 +40,8 @@ export const appRouter = router({
             statsPath: config.statsPath,
             pollingInterval: config.pollingInterval,
             pollingEnabled: !!config.pollingEnabled,
+            username: config.username ?? "",
+            hasPassword: !!config.password,
           }
         : null;
     }),
@@ -53,10 +56,16 @@ export const appRouter = router({
           statsPath: z.string().default("/ext/skynet/stats.js"),
           pollingInterval: z.number().int().min(30).max(86400).default(300),
           pollingEnabled: z.boolean().default(true),
+          username: z.string().optional(),
+          password: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const config = await upsertSkynetConfig(input);
+        const config = await upsertSkynetConfig({
+          ...input,
+          username: input.username || null,
+          password: input.password || null,
+        });
 
         // Restart polling with new settings
         if (input.pollingEnabled) {
@@ -113,6 +122,8 @@ export const appRouter = router({
           routerPort: z.number().int().min(1).max(65535),
           routerProtocol: z.enum(["http", "https"]),
           statsPath: z.string(),
+          username: z.string().optional(),
+          password: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -120,12 +131,18 @@ export const appRouter = router({
           const axios = (await import("axios")).default;
           const url = `${input.routerProtocol}://${input.routerAddress}:${input.routerPort}${input.statsPath}`;
 
+          // Build auth headers if credentials provided
+          const authHeaders = buildAuthHeaders(input.username, input.password);
+
           const response = await axios.get(url, {
             timeout: 10000,
             httpsAgent:
               input.routerProtocol === "https"
                 ? new (await import("https")).Agent({ rejectUnauthorized: false })
                 : undefined,
+            headers: {
+              ...authHeaders,
+            },
           });
 
           const content = response.data as string;
@@ -153,9 +170,13 @@ export const appRouter = router({
                 ? "Connection refused"
                 : err.code === "ETIMEDOUT"
                   ? "Connection timed out"
-                  : err.response?.status === 404
-                    ? "File not found (404)"
-                    : `Error: ${err.message}`,
+                  : err.response?.status === 401
+                    ? "Authentication failed — check username/password"
+                    : err.response?.status === 403
+                      ? "Access forbidden — check credentials"
+                      : err.response?.status === 404
+                        ? "File not found (404)"
+                        : `Error: ${err.message}`,
           };
         }
       }),

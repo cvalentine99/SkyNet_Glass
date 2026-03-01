@@ -37,6 +37,10 @@ export const skynetConfig = mysqlTable("skynet_config", {
   pollingInterval: int("pollingInterval").notNull().default(300),
   /** Whether polling is enabled */
   pollingEnabled: int("pollingEnabled").notNull().default(1),
+  /** Router HTTP Basic Auth username (optional) */
+  username: varchar("username", { length: 255 }),
+  /** Router HTTP Basic Auth password (optional, stored encrypted) */
+  password: varchar("password", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -53,3 +53,12 @@
 - [x] Add loading states to useSkynetStats hook (isRefetching, isFetchingStats)
 - [x] Integrate skeletons into Home.tsx for all chart/table sections
 - [x] Test and checkpoint (14 tests passing)
+
+## Phase 6: Router Authentication
+- [x] Add username/password columns to skynetConfig DB table
+- [x] Update skynet-db.ts helpers to handle credentials
+- [x] Update tRPC routes (saveConfig, testConnection, getConfig) to accept credentials
+- [x] Update skynet-fetcher.ts to use HTTP Basic Auth (buildAuthHeaders helper)
+- [x] Add username/password fields to Settings UI with show/hide toggle
+- [x] Write vitest tests for auth header generation (8 tests)
+- [x] Test and checkpoint (22 tests passing)

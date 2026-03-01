@@ -1,8 +1,8 @@
 /**
  * Settings — Router Connection Configuration
  * Allows the user to configure the Skynet router address, protocol, port,
- * stats path, and polling interval. Also provides test connection and
- * manual fetch/genstats triggers.
+ * stats path, polling interval, and HTTP Basic Auth credentials.
+ * Also provides test connection and manual fetch/genstats triggers.
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -22,6 +22,10 @@ import {
   Clock,
   Link2,
   Shield,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -31,6 +35,10 @@ export default function SettingsPage() {
   const [statsPath, setStatsPath] = useState("/ext/skynet/stats.js");
   const [pollingInterval, setPollingInterval] = useState(300);
   const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordPlaceholder, setPasswordPlaceholder] = useState("");
 
   // Load existing config
   const configQuery = trpc.skynet.getConfig.useQuery();
@@ -104,6 +112,11 @@ export default function SettingsPage() {
       setStatsPath(configQuery.data.statsPath);
       setPollingInterval(configQuery.data.pollingInterval);
       setPollingEnabled(configQuery.data.pollingEnabled);
+      setUsername(configQuery.data.username ?? "");
+      // Don't populate password — show placeholder if one exists
+      if (configQuery.data.hasPassword) {
+        setPasswordPlaceholder("••••••••");
+      }
     }
   }, [configQuery.data]);
 
@@ -115,6 +128,9 @@ export default function SettingsPage() {
       statsPath,
       pollingInterval,
       pollingEnabled,
+      username: username || undefined,
+      // Only send password if user typed a new one
+      password: password || undefined,
     });
   };
 
@@ -124,6 +140,8 @@ export default function SettingsPage() {
       routerPort,
       routerProtocol,
       statsPath,
+      username: username || undefined,
+      password: password || undefined,
     });
   };
 
@@ -292,6 +310,85 @@ export default function SettingsPage() {
             </div>
           </GlassCard>
 
+          {/* Authentication */}
+          <GlassCard className="mb-6 p-5">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
+              <Lock className="w-4 h-4 text-gold" />
+              Authentication
+            </h2>
+            <p className="text-[10px] text-muted-foreground mb-5">
+              ASUS routers use HTTP Basic Auth. Enter your router's admin credentials to enable authenticated data fetching.
+            </p>
+
+            <div className="space-y-4">
+              {/* Username */}
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <User className="w-3 h-3" />
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin"
+                  autoComplete="username"
+                  className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Lock className="w-3 h-3" />
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={passwordPlaceholder || "Enter router password"}
+                    autoComplete="current-password"
+                    className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {passwordPlaceholder && !password && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    A password is already saved. Leave blank to keep the existing password, or enter a new one to update it.
+                  </p>
+                )}
+              </div>
+
+              {/* Auth status indicator */}
+              {(username || passwordPlaceholder) && (
+                <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-gold/5 border border-gold/10">
+                  <Shield className="w-3.5 h-3.5 text-gold" />
+                  <span className="text-muted-foreground">
+                    {username && (password || passwordPlaceholder)
+                      ? <>Credentials configured for <span className="text-gold font-mono">{username}</span>. Auth headers will be sent with all router requests.</>
+                      : username
+                        ? <>Username set to <span className="text-gold font-mono">{username}</span>. Add a password to enable authentication.</>
+                        : <>A password is saved but no username is set.</>
+                    }
+                  </span>
+                </div>
+              )}
+            </div>
+          </GlassCard>
+
           {/* Polling Settings */}
           <GlassCard className="mb-6 p-5">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-5">
@@ -379,6 +476,11 @@ export default function SettingsPage() {
                 This dashboard connects to your ASUS router running the Skynet firewall add-on.
                 Skynet generates a <code className="text-gold/80 font-mono">stats.js</code> file
                 containing all firewall statistics, which this app fetches and parses into the dashboard.
+              </p>
+              <p>
+                <strong className="text-foreground">Authentication:</strong> ASUS routers require HTTP Basic Auth
+                for WebUI access. Enter your router's admin username and password above. Credentials are stored
+                securely in the database and sent as Base64-encoded Authorization headers with each request.
               </p>
               <p>
                 <strong className="text-foreground">Polling</strong> fetches the existing stats.js file — this is lightweight and fast.

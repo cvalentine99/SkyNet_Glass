@@ -15,6 +15,22 @@ import {
   getLastContentHash,
 } from "./skynet-db";
 
+// ─── Auth Helper ───────────────────────────────────────────
+
+/**
+ * Build HTTP Basic Auth headers from optional username/password.
+ * ASUS routers use standard HTTP Basic Auth for their WebUI.
+ * Returns an empty object if no credentials are provided.
+ */
+export function buildAuthHeaders(
+  username?: string | null,
+  password?: string | null
+): Record<string, string> {
+  if (!username) return {};
+  const credentials = Buffer.from(`${username}:${password ?? ""}`).toString("base64");
+  return { Authorization: `Basic ${credentials}` };
+}
+
 // ─── In-memory state ────────────────────────────────────────
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -42,6 +58,9 @@ export async function fetchStatsFromRouter(): Promise<{
 
     const url = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}${config.statsPath}`;
 
+    // Build auth header if credentials are configured
+    const authHeaders = buildAuthHeaders(config.username, config.password);
+
     const response = await axios.get(url, {
       timeout: 15000,
       // Accept self-signed certs for router HTTPS
@@ -51,6 +70,7 @@ export async function fetchStatsFromRouter(): Promise<{
       headers: {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
+        ...authHeaders,
       },
     });
 
@@ -103,6 +123,9 @@ export async function triggerRouterGenstats(): Promise<{
 
     const baseUrl = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}`;
 
+    // Build auth header if credentials are configured
+    const authHeaders = buildAuthHeaders(config.username, config.password);
+
     // The router's httpd expects a form POST to /start_apply.htm
     await axios.post(
       `${baseUrl}/start_apply.htm`,
@@ -118,6 +141,7 @@ export async function triggerRouterGenstats(): Promise<{
         timeout: 10000,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
+          ...authHeaders,
         },
         httpsAgent: config.routerProtocol === "https"
           ? new (await import("https")).Agent({ rejectUnauthorized: false })

@@ -19,36 +19,35 @@ export async function upsertSkynetConfig(config: {
   statsPath: string;
   pollingInterval: number;
   pollingEnabled: boolean;
+  username?: string | null;
+  password?: string | null;
 }): Promise<SkynetConfig> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   const existing = await getSkynetConfig();
 
-  if (existing) {
-    await db
-      .update(skynetConfig)
-      .set({
-        routerAddress: config.routerAddress,
-        routerPort: config.routerPort,
-        routerProtocol: config.routerProtocol,
-        statsPath: config.statsPath,
-        pollingInterval: config.pollingInterval,
-        pollingEnabled: config.pollingEnabled ? 1 : 0,
-      })
-      .where(eq(skynetConfig.id, existing.id));
-
-    return { ...existing, ...config, pollingEnabled: config.pollingEnabled ? 1 : 0 };
-  }
-
-  const result = await db.insert(skynetConfig).values({
+  const values = {
     routerAddress: config.routerAddress,
     routerPort: config.routerPort,
     routerProtocol: config.routerProtocol,
     statsPath: config.statsPath,
     pollingInterval: config.pollingInterval,
     pollingEnabled: config.pollingEnabled ? 1 : 0,
-  });
+    username: config.username ?? null,
+    password: config.password ?? null,
+  };
+
+  if (existing) {
+    await db
+      .update(skynetConfig)
+      .set(values)
+      .where(eq(skynetConfig.id, existing.id));
+
+    return { ...existing, ...values };
+  }
+
+  await db.insert(skynetConfig).values(values);
 
   const inserted = await getSkynetConfig();
   return inserted!;
