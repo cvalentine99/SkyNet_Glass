@@ -517,4 +517,15 @@
 - [x] Update server/index.ts default port (3000 → 3006)
 - [x] Update DEPLOY-BAREMETAL.md (all 7 references)
 - [x] Update ENV-REFERENCE.md
+- [x] Push to GitHub
+
+## Phase 25: Deployment Guide Rewrite (Post-Deploy Feedback)
+
+- [x] Fix pnpm approve-builds — added non-interactive workaround + .npmrc fallback
+- [x] Replace MySQL heredoc with one-line-at-a-time approach in sudo mysql session
+- [x] Restructure guide: "Who Runs What" table, every section labeled (requires sudo) or (no sudo needed)
+- [x] Reorder: migrations now Step 4a, smoke test is 4d, tables verified before server starts
+- [x] Improve troubleshooting: numbered diagnostic order, #1 is "tables exist", not connection
+- [x] Add pre-flight checklist (4c) — .env, build, tables, port all verified before smoke test
+- [x] Added MySQL "Access denied" section: verify basics before trying ALTER USER
 - [ ] Push to GitHub

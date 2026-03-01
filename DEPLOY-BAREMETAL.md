@@ -8,8 +8,6 @@ This guide walks through deploying Skynet Glass on a fresh Ubuntu 24.04 LTS serv
 
 ## Architecture Overview
 
-Skynet Glass is a single-process Node.js application. In production, the Express server handles both the tRPC API and serves the pre-built static frontend files. A reverse proxy (Nginx) sits in front to handle compression and static asset caching.
-
 ```
 LAN Browser → Nginx (80) → Node.js (3006) → MySQL (3306)
                                            → Your Router (SSH)
@@ -31,16 +29,34 @@ LAN Browser → Nginx (80) → Node.js (3006) → MySQL (3306)
 
 ---
 
-## Step 1: System Preparation
+## Who Runs What
 
-Update the system and install essential packages.
+This guide has two types of commands. If you do not have sudo/root access, hand the **Admin** steps to someone who does and run the **App User** steps yourself.
+
+| Step | Who | Why |
+|---|---|---|
+| 1. System Preparation | **Admin** (root/sudo) | Installs system packages, creates DB user |
+| 2. Clone & Build | App User (`skynet`) | No root needed |
+| 3. Environment Variables | App User (`skynet`) | No root needed |
+| 4. Migrations & Smoke Test | App User (`skynet`) | No root needed |
+| 5. systemd Service | **Admin** (root/sudo) | Creates system service |
+| 6. Nginx & Firewall | **Admin** (root/sudo) | Configures reverse proxy |
+| 7. Post-Deploy Verification | Either | Browser check |
+
+---
+
+## Step 1: System Preparation (requires sudo)
+
+> **If you don't have sudo access**, give this entire section to your server admin and skip to Step 2 once they confirm it's done.
+
+### 1a. System packages
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git build-essential nginx
 ```
 
-### Install Node.js 22.x
+### 1b. Node.js 22.x
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -48,55 +64,94 @@ sudo apt install -y nodejs
 node --version   # should print v22.x.x
 ```
 
-### Install pnpm
+### 1c. pnpm
 
 ```bash
 sudo npm install -g pnpm@10
 pnpm --version   # should print 10.x.x
 ```
 
-### Install MySQL 8.0
+### 1d. MySQL 8.0
 
-If you already have a MySQL/MariaDB/TiDB instance, skip this section and use your existing connection string.
+Skip this if you already have a MySQL/MariaDB/TiDB instance.
 
 ```bash
 sudo apt install -y mysql-server
 sudo systemctl enable --now mysql
 ```
 
-Create the application database and user:
+Create the database and user. Run these **one line at a time** in a `sudo mysql` session (heredocs can break when pasted into some terminals):
 
 ```bash
-sudo mysql -u root <<'SQL'
+sudo mysql
+```
+
+Then inside the MySQL prompt, run each line individually:
+
+```sql
 CREATE DATABASE skynet_glass CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'skynet'@'localhost' IDENTIFIED BY 'CHANGE_ME_STRONG_PASSWORD';
 GRANT ALL PRIVILEGES ON skynet_glass.* TO 'skynet'@'localhost';
 FLUSH PRIVILEGES;
-SQL
+EXIT;
 ```
 
-> **Important:** Replace `CHANGE_ME_STRONG_PASSWORD` with a strong, unique password.
+> **Important:** Replace `CHANGE_ME_STRONG_PASSWORD` with a strong, unique password. You will use this same password in the `DATABASE_URL` environment variable in Step 3.
 
----
+Verify the user works:
 
-## Step 2: Clone and Build the Application
+```bash
+mysql -u skynet -p'CHANGE_ME_STRONG_PASSWORD' -e "SELECT 1;"
+```
 
-Create a dedicated system user (optional but recommended for security):
+If this prints `1`, the database user is ready. If you get `Access denied`, double-check the password — do not try `ALTER USER` or other workarounds until you have confirmed the exact password matches.
+
+### 1e. Create app user (optional)
 
 ```bash
 sudo useradd -m -s /bin/bash skynet
 sudo su - skynet
 ```
 
-Clone the repository and install dependencies:
+---
+
+## Step 2: Clone and Build (no sudo needed)
+
+If you created the `skynet` user above, make sure you are logged in as that user (`sudo su - skynet`). Otherwise, use your own home directory.
+
+### 2a. Clone
 
 ```bash
 git clone https://github.com/cvalentine99/SkyNet_Glass.git ~/skynet-glass
 cd ~/skynet-glass
-pnpm install --frozen-lockfile
 ```
 
-Build the production assets:
+### 2b. Approve native build scripts
+
+pnpm 10+ requires you to approve packages that run build scripts (like `esbuild` and `@tailwindcss/oxide`). The interactive `pnpm approve-builds` command can be difficult in some terminals. Use this non-interactive approach instead:
+
+```bash
+pnpm config set --location project approve-builds esbuild
+pnpm config set --location project approve-builds @tailwindcss/oxide
+```
+
+If that doesn't work, you can also edit `.npmrc` in the project root directly:
+
+```bash
+cat >> .npmrc << 'EOF'
+approve-builds=esbuild,@tailwindcss/oxide
+EOF
+```
+
+### 2c. Install dependencies
+
+```bash
+pnpm install
+```
+
+> **Note:** If pnpm warns about unapproved build scripts and skips them, run `pnpm rebuild` after adding the approve-builds config above, then try `pnpm install` again.
+
+### 2d. Build
 
 ```bash
 pnpm build
@@ -111,27 +166,28 @@ This produces two artifacts:
 
 ---
 
-## Step 3: Environment Variables
+## Step 3: Environment Variables (no sudo needed)
 
 Skynet Glass needs only **4 environment variables**. Create a `.env` file in the project root:
 
 ```bash
-cat > ~/skynet-glass/.env << 'EOF'
+nano ~/skynet-glass/.env
+```
+
+Paste this content (edit the values):
+
+```
 NODE_ENV=production
 PORT=3006
 DATABASE_URL=mysql://skynet:CHANGE_ME_STRONG_PASSWORD@localhost:3306/skynet_glass
 JWT_SECRET=PASTE_YOUR_RANDOM_SECRET_HERE
-EOF
 ```
 
-Generate a secure JWT secret:
+Generate a secure JWT secret and paste it in:
 
 ```bash
 openssl rand -hex 32
-# Paste the output as the JWT_SECRET value in .env
 ```
-
-### Environment Variable Reference
 
 | Variable | Required | Description |
 |---|---|---|
@@ -140,28 +196,35 @@ openssl rand -hex 32
 | `DATABASE_URL` | Yes | MySQL connection string |
 | `JWT_SECRET` | Yes | Secret for signing session cookies (min 32 chars) |
 
-That's it. No OAuth, Forge API, or analytics variables are needed for bare metal deployment.
+That's it. No OAuth, Forge API, or analytics variables are needed.
 
 ---
 
-## Step 4: Run Database Migrations
+## Step 4: Migrations and Smoke Test (no sudo needed)
 
-Apply the Drizzle schema migrations to create all required tables:
+### 4a. Run database migrations FIRST
+
+> **This step must happen before you start the server.** If you skip it, the server will start but every query will fail with "table doesn't exist" errors — which looks like a connection problem but isn't.
 
 ```bash
 cd ~/skynet-glass
 pnpm db:push
 ```
 
-This runs `drizzle-kit generate && drizzle-kit migrate`, which applies all SQL migration files to your database.
+If this fails with a connection error, verify your `DATABASE_URL` is correct:
 
-Verify the tables were created:
+```bash
+source ~/skynet-glass/.env
+mysql -u skynet -p"$(echo $DATABASE_URL | sed 's|.*://skynet:\(.*\)@.*|\1|')" skynet_glass -e "SELECT 1;"
+```
+
+### 4b. Verify tables exist
 
 ```bash
 mysql -u skynet -p skynet_glass -e "SHOW TABLES;"
 ```
 
-Expected tables:
+You should see these tables:
 
 | Table | Purpose |
 |---|---|
@@ -174,11 +237,20 @@ Expected tables:
 | `device_policies` | Per-device blocking rules |
 | `__drizzle_migrations` | Migration tracking |
 
----
+> **If SHOW TABLES returns empty**, migrations did not run. Go back to 4a.
 
-## Step 5: Test the Server
+### 4c. Pre-flight checklist
 
-Run a quick smoke test before setting up the service:
+Before starting the server, confirm all of these:
+
+| Check | Command | Expected |
+|---|---|---|
+| `.env` exists | `cat ~/skynet-glass/.env` | Shows 4 variables |
+| Build exists | `ls ~/skynet-glass/dist/index.js` | File exists |
+| Tables exist | `mysql -u skynet -p skynet_glass -e "SHOW TABLES;"` | 8 tables listed |
+| Port available | `ss -tlnp \| grep 3006` | Nothing (port is free) |
+
+### 4d. Smoke test
 
 ```bash
 cd ~/skynet-glass
@@ -194,11 +266,13 @@ Server running on http://localhost:3006/
 
 Open `http://YOUR_SERVER_IP:3006` in a browser. You should see the Skynet Glass dashboard. Press `Ctrl+C` to stop.
 
+> **If you see "Failed query" or "table doesn't exist" errors**, you skipped Step 4a. Stop the server, run `pnpm db:push`, and try again.
+
 ---
 
-## Step 6: Create a systemd Service
+## Step 5: systemd Service (requires sudo)
 
-Create a systemd unit file so the application starts automatically and restarts on failure.
+> **If you don't have sudo access**, give this section to your server admin.
 
 ```bash
 sudo tee /etc/systemd/system/skynet-glass.service > /dev/null << 'EOF'
@@ -240,26 +314,28 @@ WantedBy=multi-user.target
 EOF
 ```
 
-Enable and start the service:
+Enable and start:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable skynet-glass
 sudo systemctl start skynet-glass
+sudo systemctl status skynet-glass
 ```
 
-Check the status:
+Follow live logs:
 
 ```bash
-sudo systemctl status skynet-glass
-sudo journalctl -u skynet-glass -f   # follow live logs
+sudo journalctl -u skynet-glass -f
 ```
 
 ---
 
-## Step 7: Configure Nginx Reverse Proxy
+## Step 6: Nginx and Firewall (requires sudo)
 
-Since this is a LAN-only deployment, HTTP is sufficient. If you later want HTTPS, add Let's Encrypt with `certbot`.
+> **If you don't have sudo access**, give this section to your server admin.
+
+### 6a. Nginx reverse proxy
 
 ```bash
 sudo tee /etc/nginx/sites-available/skynet-glass > /dev/null << 'NGINX'
@@ -267,20 +343,17 @@ server {
     listen 80;
     server_name skynet.local;  # Change to your hostname or IP
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Gzip compression
     gzip on;
     gzip_vary on;
     gzip_proxied any;
     gzip_comp_level 6;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
 
-    # Static assets — long cache
     location /assets/ {
         proxy_pass http://127.0.0.1:3006;
         proxy_set_header Host $host;
@@ -289,7 +362,6 @@ server {
         access_log off;
     }
 
-    # API and SPA
     location / {
         proxy_pass http://127.0.0.1:3006;
         proxy_http_version 1.1;
@@ -299,12 +371,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-
-        # Increase timeouts for long-polling tRPC calls
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
-
-        # Increase body size for config import
         client_max_body_size 10M;
     }
 }
@@ -320,11 +388,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
----
-
-## Step 8: Firewall Configuration
-
-Allow HTTP traffic and restrict direct access to the Node.js port:
+### 6b. Firewall
 
 ```bash
 sudo ufw allow OpenSSH
@@ -336,9 +400,7 @@ The Node.js server on port 3006 is only accessible via `127.0.0.1` through Nginx
 
 ---
 
-## Step 9: Post-Deployment Verification
-
-Run through this checklist to confirm everything is working:
+## Step 7: Post-Deployment Verification
 
 | Check | Command / Action | Expected Result |
 |---|---|---|
@@ -353,26 +415,15 @@ Run through this checklist to confirm everything is working:
 
 ## Updating the Application
 
-To deploy a new version:
-
 ```bash
-sudo su - skynet
+# As the skynet user (or whoever owns the project):
 cd ~/skynet-glass
-
-# Pull latest code
 git pull origin main
-
-# Install any new dependencies
-pnpm install --frozen-lockfile
-
-# Run migrations (if schema changed)
-pnpm db:push
-
-# Rebuild
+pnpm install
+pnpm db:push          # run migrations if schema changed
 pnpm build
 
-# Restart
-exit
+# As admin (requires sudo):
 sudo systemctl restart skynet-glass
 ```
 
@@ -380,25 +431,64 @@ sudo systemctl restart skynet-glass
 
 ## Troubleshooting
 
-Check the logs for the specific error:
+### Diagnostic order (check these in order, not randomly)
+
+When something goes wrong, work through this list **top to bottom**. Most problems are #1 or #2.
+
+| # | Check | Command | What it means if it fails |
+|---|---|---|---|
+| 1 | **Tables exist** | `mysql -u skynet -p skynet_glass -e "SHOW TABLES;"` | Migrations never ran. Run `pnpm db:push`. |
+| 2 | **Build exists** | `ls dist/index.js` | Build artifacts missing. Run `pnpm build`. |
+| 3 | **Env file exists** | `cat .env` | Missing `.env`. Create it per Step 3. |
+| 4 | **DB connects** | `mysql -u skynet -p skynet_glass -e "SELECT 1;"` | Wrong password or MySQL not running. |
+| 5 | **Port free** | `ss -tlnp \| grep 3006` | Something else is using port 3006. |
+| 6 | **Service logs** | `sudo journalctl -u skynet-glass -n 50` | Read the actual error message. |
+
+### "Failed query" or "table doesn't exist"
+
+This is the most common error. It means the server connected to MySQL successfully, but the tables were never created. The fix is always:
 
 ```bash
-sudo journalctl -u skynet-glass --no-pager -n 50
+cd ~/skynet-glass
+pnpm db:push
+sudo systemctl restart skynet-glass
 ```
 
-Common causes and fixes:
+### pnpm approve-builds issues
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `DATABASE_URL is required` | Missing `.env` or wrong path | Verify `.env` exists in project root |
-| `ECONNREFUSED 127.0.0.1:3306` | MySQL not running | `sudo systemctl start mysql` |
-| `Access denied for user` | Wrong DB credentials | Check `DATABASE_URL` in `.env` |
-| `EADDRINUSE :::3000` | Port already in use | Change `PORT` in `.env` or kill the other process |
-| `Cannot find module` | Build artifacts missing | Run `pnpm build` again |
+If `pnpm install` warns about unapproved build scripts for `esbuild` or `@tailwindcss/oxide`:
+
+```bash
+# Option 1: Non-interactive config
+pnpm config set --location project approve-builds esbuild
+pnpm config set --location project approve-builds @tailwindcss/oxide
+pnpm rebuild
+
+# Option 2: Edit .npmrc directly
+echo "approve-builds=esbuild,@tailwindcss/oxide" >> .npmrc
+pnpm rebuild
+```
+
+### MySQL "Access denied"
+
+Before trying `ALTER USER` or other workarounds, verify the basics:
+
+```bash
+# 1. Confirm the user exists
+sudo mysql -e "SELECT user, host FROM mysql.user WHERE user='skynet';"
+
+# 2. Test with the exact password from your .env
+mysql -u skynet -p'YOUR_EXACT_PASSWORD' -e "SELECT 1;"
+
+# 3. If the user doesn't exist, create it (requires sudo mysql)
+sudo mysql -e "CREATE USER 'skynet'@'localhost' IDENTIFIED BY 'YOUR_PASSWORD';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON skynet_glass.* TO 'skynet'@'localhost';"
+sudo mysql -e "FLUSH PRIVILEGES;"
+```
 
 ### Database migrations fail
 
-If `pnpm db:push` fails, check that `DATABASE_URL` is set in the current shell:
+If `pnpm db:push` can't find the DATABASE_URL:
 
 ```bash
 source ~/skynet-glass/.env
@@ -420,7 +510,7 @@ DELETE FROM skynet_stats_history WHERE snapshotAt < DATE_SUB(NOW(), INTERVAL 90 
 
 ### Database
 
-Set up a daily MySQL dump via cron:
+Set up a daily MySQL dump via cron (requires sudo):
 
 ```bash
 sudo tee /etc/cron.daily/skynet-backup > /dev/null << 'BASH'
@@ -428,7 +518,6 @@ sudo tee /etc/cron.daily/skynet-backup > /dev/null << 'BASH'
 BACKUP_DIR="/home/skynet/backups"
 mkdir -p "$BACKUP_DIR"
 mysqldump -u skynet -p'CHANGE_ME_STRONG_PASSWORD' skynet_glass | gzip > "$BACKUP_DIR/skynet-glass-$(date +%Y%m%d).sql.gz"
-# Keep last 30 days
 find "$BACKUP_DIR" -name "*.sql.gz" -mtime +30 -delete
 BASH
 sudo chmod +x /etc/cron.daily/skynet-backup
@@ -443,19 +532,19 @@ Use the built-in Configuration Export feature in Settings to download a JSON bac
 ## Quick Reference
 
 ```bash
-# Service management
+# Service management (requires sudo)
 sudo systemctl start skynet-glass
 sudo systemctl stop skynet-glass
 sudo systemctl restart skynet-glass
 sudo systemctl status skynet-glass
 
-# View logs
-sudo journalctl -u skynet-glass -f          # follow live
+# View logs (requires sudo)
+sudo journalctl -u skynet-glass -f
 sudo journalctl -u skynet-glass --since "1 hour ago"
 
-# Rebuild after code changes
-cd ~/skynet-glass && pnpm build && sudo systemctl restart skynet-glass
+# Rebuild after code changes (as app user)
+cd ~/skynet-glass && pnpm build
 
-# Run migrations
+# Run migrations (as app user)
 cd ~/skynet-glass && pnpm db:push
 ```
