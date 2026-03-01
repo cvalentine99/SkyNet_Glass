@@ -3,7 +3,15 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { getSkynetConfig, upsertSkynetConfig, getStatsHistory } from "./skynet-db";
+import {
+  getSkynetConfig,
+  upsertSkynetConfig,
+  getStatsHistory,
+  updateTargetLocation,
+  getAlertConfig,
+  upsertAlertConfig,
+  getAlertHistory,
+} from "./skynet-db";
 import {
   buildAuthHeaders,
   fetchStatsFromRouter,
@@ -323,6 +331,7 @@ export const appRouter = router({
           totalBlocks: h.totalBlocks,
           uniqueCountries: h.uniqueCountries,
           uniquePorts: h.uniquePorts,
+          countryData: h.countryData as Array<{ code: string; country: string; blocks: number }> | null,
           snapshotAt: h.snapshotAt,
         }));
       }),
@@ -517,6 +526,78 @@ export const appRouter = router({
           geoMap,
           cacheSize: getCacheSize(),
         };
+      }),
+
+    // ─── Target Location ──────────────────────────────────
+
+    /** Get the configured target location for the threat map */
+    getTargetLocation: publicProcedure.query(async () => {
+      const config = await getSkynetConfig();
+      return {
+        lat: config?.targetLat ?? null,
+        lng: config?.targetLng ?? null,
+      };
+    }),
+
+    /** Save the target location (router's geographic position) */
+    saveTargetLocation: publicProcedure
+      .input(
+        z.object({
+          lat: z.number().min(-90).max(90),
+          lng: z.number().min(-180).max(180),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateTargetLocation(input.lat, input.lng);
+        return { success: true };
+      }),
+
+    // ─── Alert Configuration ─────────────────────────────
+
+    /** Get the current alert configuration */
+    getAlertConfig: publicProcedure.query(async () => {
+      const config = await getAlertConfig();
+      return config
+        ? {
+            alertsEnabled: !!config.alertsEnabled,
+            blockSpikeThreshold: config.blockSpikeThreshold,
+            blockSpikeEnabled: !!config.blockSpikeEnabled,
+            newCountryEnabled: !!config.newCountryEnabled,
+            newPortEnabled: !!config.newPortEnabled,
+            countryMinBlocks: config.countryMinBlocks,
+            cooldownMinutes: config.cooldownMinutes,
+          }
+        : null;
+    }),
+
+    /** Save alert configuration */
+    saveAlertConfig: publicProcedure
+      .input(
+        z.object({
+          alertsEnabled: z.boolean(),
+          blockSpikeThreshold: z.number().int().min(10).max(100000).default(1000),
+          blockSpikeEnabled: z.boolean().default(true),
+          newCountryEnabled: z.boolean().default(true),
+          newPortEnabled: z.boolean().default(false),
+          countryMinBlocks: z.number().int().min(1).max(10000).default(50),
+          cooldownMinutes: z.number().int().min(5).max(1440).default(30),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const config = await upsertAlertConfig(input);
+        return { success: true, config };
+      }),
+
+    /** Get alert history */
+    getAlertHistory: publicProcedure
+      .input(
+        z.object({
+          limit: z.number().int().min(1).max(200).default(50),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        const history = await getAlertHistory(input?.limit ?? 50);
+        return history;
       }),
 
     /** Test connection to the router */

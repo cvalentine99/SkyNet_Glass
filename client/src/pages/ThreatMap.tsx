@@ -20,6 +20,7 @@
  */
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { useSkynetStats } from "@/hooks/useSkynetStats";
+import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -36,6 +37,12 @@ import {
   Eye,
   EyeOff,
   RotateCw,
+  History,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Clock,
 } from "lucide-react";
 
 // ─── Earth Textures (CDN) ─────────────────────────────────
@@ -95,7 +102,7 @@ const COUNTRY_CENTROIDS: Record<string, { lat: number; lng: number }> = {
   MD: { lat: 47.41, lng: 28.37 },
 };
 
-// Default target location (user's router — US center as default)
+// Default target location (US center fallback)
 const DEFAULT_TARGET = { lat: 37.09, lng: -95.71 };
 
 // ─── Severity Helpers ─────────────────────────────────────
@@ -175,6 +182,74 @@ export default function ThreatMap() {
   const [globeReady, setGlobeReady] = useState(false);
   const [hoveredArc, setHoveredArc] = useState<ArcDatum | null>(null);
 
+  // Historical playback state
+  const [playbackMode, setPlaybackMode] = useState(false);
+  const [playbackIndex, setPlaybackIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch target location from settings
+  const targetLocationQuery = trpc.skynet.getTargetLocation.useQuery();
+  const targetLocation = useMemo(() => {
+    if (targetLocationQuery.data?.lat != null && targetLocationQuery.data?.lng != null) {
+      return { lat: targetLocationQuery.data.lat, lng: targetLocationQuery.data.lng };
+    }
+    return DEFAULT_TARGET;
+  }, [targetLocationQuery.data]);
+
+  // Fetch historical data for playback
+  const historyQuery = trpc.skynet.getHistory.useQuery(
+    { hoursBack: 24 },
+    { enabled: playbackMode }
+  );
+
+  // Historical snapshots with country data
+  const historySnapshots = useMemo(() => {
+    if (!historyQuery.data) return [];
+    return historyQuery.data
+      .filter((h) => h.countryData && (h.countryData as any[]).length > 0)
+      .map((h) => ({
+        id: h.id,
+        timestamp: new Date(h.snapshotAt),
+        totalBlocks: h.totalBlocks,
+        countryData: (h.countryData as Array<{ code: string; country: string; blocks: number }>)
+          .sort((a, b) => b.blocks - a.blocks)
+          .map((c, _i, arr) => {
+            const total = arr.reduce((s, x) => s + x.blocks, 0);
+            return {
+              ...c,
+              percentage: total > 0 ? Math.round((c.blocks / total) * 100) : 0,
+            };
+          }),
+      }));
+  }, [historyQuery.data]);
+
+  // Playback auto-advance
+  useEffect(() => {
+    if (isPlaying && historySnapshots.length > 0) {
+      playbackTimerRef.current = setInterval(() => {
+        setPlaybackIndex((prev) => {
+          if (prev >= historySnapshots.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 2000);
+    }
+    return () => {
+      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+    };
+  }, [isPlaying, historySnapshots.length]);
+
+  // Reset playback index when entering playback mode
+  useEffect(() => {
+    if (playbackMode) {
+      setPlaybackIndex(0);
+      setIsPlaying(false);
+    }
+  }, [playbackMode]);
+
   // Dynamic import of react-globe.gl (it's a heavy library)
   useEffect(() => {
     import("react-globe.gl").then((mod) => {
@@ -222,7 +297,14 @@ export default function ThreatMap() {
 
   // ─── Build Globe Data ─────────────────────────────────────
 
-  const countryData = skynet.countryDistribution;
+  // Use playback data or live data
+  const countryData = useMemo(() => {
+    if (playbackMode && historySnapshots.length > 0 && playbackIndex < historySnapshots.length) {
+      return historySnapshots[playbackIndex].countryData;
+    }
+    return skynet.countryDistribution;
+  }, [playbackMode, historySnapshots, playbackIndex, skynet.countryDistribution]);
+
   const maxBlocks = useMemo(
     () => Math.max(1, ...countryData.map((c) => c.blocks)),
     [countryData]
@@ -239,8 +321,8 @@ export default function ThreatMap() {
         return {
           startLat: src.lat,
           startLng: src.lng,
-          endLat: DEFAULT_TARGET.lat,
-          endLng: DEFAULT_TARGET.lng,
+          endLat: targetLocation.lat,
+          endLng: targetLocation.lng,
           color: [`${color}cc`, `${color}33`] as [string, string],
           stroke: 0.4 + intensity * 2.2,
           dashLength: 0.4 + intensity * 0.8,
@@ -313,14 +395,14 @@ export default function ThreatMap() {
           size: 0.6 + Math.sqrt(c.blocks / maxBlocks) * 0.6,
         };
       });
-  }, [countryData, maxBlocks]);
+  }, [countryData, maxBlocks, targetLocation]);
 
   // Target ring (your router)
   const targetRings = useMemo(
     () => [
       {
-        lat: DEFAULT_TARGET.lat,
-        lng: DEFAULT_TARGET.lng,
+        lat: targetLocation.lat,
+        lng: targetLocation.lng,
         maxR: 4,
         propagationSpeed: 2,
         repeatPeriod: 2000,
@@ -334,7 +416,7 @@ export default function ThreatMap() {
         blocks: 0,
       },
     ],
-    []
+    [targetLocation]
   );
 
   // Globe ready callback
@@ -771,6 +853,133 @@ export default function ThreatMap() {
                     <LegendDot color="#ffcc33" label="Medium" />
                     <LegendDot color="#33ff88" label="Low" />
                   </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Historical Playback Timeline */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="absolute bottom-[72px] left-4 right-4 z-40"
+            >
+              <div className="rounded-xl bg-black/70 border border-cyan-500/15 backdrop-blur-2xl px-4 py-2">
+                <div className="flex items-center gap-3">
+                  {/* Playback toggle */}
+                  <button
+                    onClick={() => setPlaybackMode(!playbackMode)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all ${
+                      playbackMode
+                        ? "bg-cyan-500/20 border border-cyan-500/30 text-cyan-300"
+                        : "bg-white/5 border border-white/10 text-cyan-400/60 hover:text-cyan-400"
+                    }`}
+                  >
+                    <History className="w-3 h-3" />
+                    {playbackMode ? "PLAYBACK" : "HISTORY"}
+                  </button>
+
+                  {playbackMode ? (
+                    <>
+                      {/* Playback controls */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPlaybackIndex(Math.max(0, playbackIndex - 1))}
+                          disabled={playbackIndex <= 0}
+                          className="p-1 rounded text-cyan-400/60 hover:text-cyan-400 disabled:opacity-30 transition-colors"
+                        >
+                          <SkipBack className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          disabled={historySnapshots.length === 0}
+                          className="p-1.5 rounded-md bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 disabled:opacity-30 transition-all"
+                        >
+                          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => setPlaybackIndex(Math.min(historySnapshots.length - 1, playbackIndex + 1))}
+                          disabled={playbackIndex >= historySnapshots.length - 1}
+                          className="p-1 rounded text-cyan-400/60 hover:text-cyan-400 disabled:opacity-30 transition-colors"
+                        >
+                          <SkipForward className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Timeline slider */}
+                      <div className="flex-1 flex items-center gap-3">
+                        {historySnapshots.length > 0 ? (
+                          <>
+                            <span className="text-[9px] text-cyan-400/50 font-mono shrink-0">
+                              {historySnapshots[0]?.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <div className="flex-1 relative">
+                              <input
+                                type="range"
+                                min={0}
+                                max={Math.max(0, historySnapshots.length - 1)}
+                                value={playbackIndex}
+                                onChange={(e) => {
+                                  setPlaybackIndex(parseInt(e.target.value));
+                                  setIsPlaying(false);
+                                }}
+                                className="w-full accent-cyan-400 h-1"
+                                style={{ accentColor: '#22d3ee' }}
+                              />
+                              {/* Tick marks */}
+                              <div className="absolute top-3 left-0 right-0 flex justify-between pointer-events-none">
+                                {historySnapshots.length <= 12
+                                  ? historySnapshots.map((_, i) => (
+                                      <div
+                                        key={i}
+                                        className={`w-0.5 h-1 rounded-full ${
+                                          i === playbackIndex ? "bg-cyan-400" : "bg-cyan-400/20"
+                                        }`}
+                                      />
+                                    ))
+                                  : Array.from({ length: 12 }).map((_, i) => (
+                                      <div
+                                        key={i}
+                                        className="w-0.5 h-1 rounded-full bg-cyan-400/20"
+                                      />
+                                    ))}
+                              </div>
+                            </div>
+                            <span className="text-[9px] text-cyan-400/50 font-mono shrink-0">
+                              {historySnapshots[historySnapshots.length - 1]?.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-cyan-400/40 font-mono">
+                            {historyQuery.isLoading ? "Loading history..." : "No historical data available"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Current snapshot info */}
+                      {historySnapshots.length > 0 && playbackIndex < historySnapshots.length && (
+                        <div className="flex items-center gap-2 shrink-0 border-l border-cyan-500/10 pl-3">
+                          <Clock className="w-3 h-3 text-cyan-400/50" />
+                          <span className="text-[10px] text-cyan-300 font-mono">
+                            {historySnapshots[playbackIndex].timestamp.toLocaleString([], {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </span>
+                          <span className="text-[9px] text-cyan-400/40 font-mono">
+                            {historySnapshots[playbackIndex].totalBlocks.toLocaleString()} blocks
+                          </span>
+                          <span className="text-[9px] text-cyan-400/30 font-mono">
+                            {playbackIndex + 1}/{historySnapshots.length}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-cyan-400/40 font-mono">
+                      Click HISTORY to replay threat activity over the past 24 hours
+                    </span>
+                  )}
                 </div>
               </div>
             </motion.div>

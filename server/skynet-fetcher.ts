@@ -15,6 +15,7 @@ import {
   getLastContentHash,
   saveStatsSnapshot,
 } from "./skynet-db";
+import { checkAlerts, initAlertBaseline } from "./skynet-alerts";
 
 // ─── Auth Helper ───────────────────────────────────────────
 
@@ -102,6 +103,24 @@ export async function fetchStatsFromRouter(): Promise<{
           if (c.country) allCountries.add(c.country);
         });
 
+        // Build country distribution for historical playback
+        const countryMap = new Map<string, { code: string; country: string; hits: number }>();
+        [...(stats.topInboundBlocks || []), ...(stats.topOutboundBlocks || []), ...(stats.topHttpBlocks || [])].forEach(c => {
+          if (c.country) {
+            const existing = countryMap.get(c.country);
+            if (existing) {
+              existing.hits += c.hits;
+            } else {
+              countryMap.set(c.country, { code: c.country, country: c.country, hits: c.hits });
+            }
+          }
+        });
+        const countryData = Array.from(countryMap.values()).map(c => ({
+          code: c.code,
+          country: c.country,
+          blocks: c.hits,
+        }));
+
         await saveStatsSnapshot({
           ipsBanned: stats.kpi.ipsBanned || 0,
           rangesBanned: stats.kpi.rangesBanned || 0,
@@ -111,10 +130,21 @@ export async function fetchStatsFromRouter(): Promise<{
           uniqueCountries: allCountries.size,
           uniquePorts: (stats.inboundPortHits || []).length,
           contentHash: hash,
+          countryData,
         });
       } catch (histErr) {
         console.warn("[Skynet] Failed to save history snapshot:", histErr);
       }
+    }
+
+    // Run alert checks after successful fetch
+    try {
+      const alerts = await checkAlerts(stats);
+      if (alerts.length > 0) {
+        console.log(`[Skynet Alerts] Triggered ${alerts.length} alert(s):`, alerts.map(a => a.type).join(", "));
+      }
+    } catch (alertErr) {
+      console.warn("[Skynet Alerts] Error checking alerts:", alertErr);
     }
 
     lastFetchTime = new Date();

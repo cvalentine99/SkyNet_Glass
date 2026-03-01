@@ -27,6 +27,13 @@ import {
   Lock,
   Eye,
   EyeOff,
+  MapPin,
+  Bell,
+  BellOff,
+  AlertTriangle,
+  Globe,
+  Target,
+  History,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -468,6 +475,12 @@ export default function SettingsPage() {
             </button>
           </div>
 
+          {/* ─── Target Location ────────────────────────── */}
+          <TargetLocationSection />
+
+          {/* ─── Alert Configuration ─────────────────────── */}
+          <AlertConfigSection />
+
           {/* Info */}
           <GlassCard className="mt-8 p-5">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
@@ -498,5 +511,397 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// ─── Target Location Section ─────────────────────────────────
+
+function TargetLocationSection() {
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+
+  const targetQuery = trpc.skynet.getTargetLocation.useQuery();
+  const saveMutation = trpc.skynet.saveTargetLocation.useMutation({
+    onSuccess: () => {
+      toast.success("Target location saved", {
+        description: "Threat map arcs will now point to your router's location",
+      });
+      targetQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error("Failed to save location", { description: err.message });
+    },
+  });
+
+  useEffect(() => {
+    if (targetQuery.data) {
+      if (targetQuery.data.lat !== null) setLat(String(targetQuery.data.lat));
+      if (targetQuery.data.lng !== null) setLng(String(targetQuery.data.lng));
+    }
+  }, [targetQuery.data]);
+
+  const handleSave = () => {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      toast.error("Invalid coordinates", { description: "Latitude must be -90 to 90, longitude -180 to 180" });
+      return;
+    }
+    saveMutation.mutate({ lat: latNum, lng: lngNum });
+  };
+
+  return (
+    <GlassCard className="mb-6 p-5">
+      <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
+        <MapPin className="w-4 h-4 text-gold" />
+        Router Location
+      </h2>
+      <p className="text-[10px] text-muted-foreground mb-4">
+        Set your router's geographic coordinates so the Threat Map shows attack arcs
+        pointing to your actual location instead of the default US center.
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1.5">Latitude</label>
+          <input
+            type="number"
+            step="0.01"
+            min={-90}
+            max={90}
+            value={lat}
+            onChange={(e) => setLat(e.target.value)}
+            placeholder="37.09 (e.g., your city latitude)"
+            className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1.5">Longitude</label>
+          <input
+            type="number"
+            step="0.01"
+            min={-180}
+            max={180}
+            value={lng}
+            onChange={(e) => setLng(e.target.value)}
+            placeholder="-95.71 (e.g., your city longitude)"
+            className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-muted-foreground">
+          Tip: Search "my coordinates" on Google to find your lat/lng.
+          {targetQuery.data?.lat !== null && (
+            <span className="ml-2 text-gold/60">
+              Current: {targetQuery.data?.lat}, {targetQuery.data?.lng}
+            </span>
+          )}
+        </p>
+        <button
+          onClick={handleSave}
+          disabled={saveMutation.isPending || !lat || !lng}
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-md bg-gold text-background hover:bg-gold/90 transition-all disabled:opacity-50"
+        >
+          {saveMutation.isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Target className="w-3.5 h-3.5" />
+          )}
+          Save Location
+        </button>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ─── Alert Configuration Section ─────────────────────────────
+
+function AlertConfigSection() {
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [blockSpikeEnabled, setBlockSpikeEnabled] = useState(true);
+  const [blockSpikeThreshold, setBlockSpikeThreshold] = useState(1000);
+  const [newCountryEnabled, setNewCountryEnabled] = useState(true);
+  const [newPortEnabled, setNewPortEnabled] = useState(false);
+  const [countryMinBlocks, setCountryMinBlocks] = useState(50);
+  const [cooldownMinutes, setCooldownMinutes] = useState(30);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const alertConfigQuery = trpc.skynet.getAlertConfig.useQuery();
+  const alertHistoryQuery = trpc.skynet.getAlertHistory.useQuery(
+    { limit: 20 },
+    { enabled: showHistory }
+  );
+
+  const saveMutation = trpc.skynet.saveAlertConfig.useMutation({
+    onSuccess: () => {
+      toast.success("Alert settings saved");
+      alertConfigQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error("Failed to save alerts", { description: err.message });
+    },
+  });
+
+  useEffect(() => {
+    if (alertConfigQuery.data) {
+      setAlertsEnabled(alertConfigQuery.data.alertsEnabled);
+      setBlockSpikeEnabled(alertConfigQuery.data.blockSpikeEnabled);
+      setBlockSpikeThreshold(alertConfigQuery.data.blockSpikeThreshold);
+      setNewCountryEnabled(alertConfigQuery.data.newCountryEnabled);
+      setNewPortEnabled(alertConfigQuery.data.newPortEnabled);
+      setCountryMinBlocks(alertConfigQuery.data.countryMinBlocks);
+      setCooldownMinutes(alertConfigQuery.data.cooldownMinutes);
+    }
+  }, [alertConfigQuery.data]);
+
+  const handleSave = () => {
+    saveMutation.mutate({
+      alertsEnabled,
+      blockSpikeEnabled,
+      blockSpikeThreshold,
+      newCountryEnabled,
+      newPortEnabled,
+      countryMinBlocks,
+      cooldownMinutes,
+    });
+  };
+
+  return (
+    <GlassCard className="mb-6 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Bell className="w-4 h-4 text-gold" />
+          Notification Alerts
+        </h2>
+        <button
+          onClick={() => setAlertsEnabled(!alertsEnabled)}
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            alertsEnabled ? "bg-gold" : "bg-secondary"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-background transition-transform ${
+              alertsEnabled ? "translate-x-5" : "translate-x-0"
+            }`}
+          />
+        </button>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground mb-4">
+        Get notified when unusual activity is detected on your network.
+        Alerts are sent via the Manus notification system after each stats polling cycle.
+      </p>
+
+      <div className={`space-y-4 transition-opacity ${alertsEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+        {/* Block Spike */}
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-severity-critical" />
+              <label className="text-xs text-foreground font-medium">Block Spike Detection</label>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
+              Alert when total blocks increase by more than the threshold in one polling cycle
+            </p>
+          </div>
+          <button
+            onClick={() => setBlockSpikeEnabled(!blockSpikeEnabled)}
+            className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ml-3 ${
+              blockSpikeEnabled ? "bg-gold" : "bg-secondary"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background transition-transform ${
+                blockSpikeEnabled ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {blockSpikeEnabled && (
+          <div className="ml-5">
+            <label className="block text-[10px] text-muted-foreground mb-1">Spike Threshold</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={10}
+                max={10000}
+                step={10}
+                value={blockSpikeThreshold}
+                onChange={(e) => setBlockSpikeThreshold(parseInt(e.target.value))}
+                className="flex-1 accent-gold"
+              />
+              <span className="text-xs font-mono text-foreground w-16 text-right tabular-nums">
+                {blockSpikeThreshold.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* New Country */}
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Globe className="w-3.5 h-3.5 text-severity-high" />
+              <label className="text-xs text-foreground font-medium">New Country Detection</label>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
+              Alert when a new country appears in the threat data
+            </p>
+          </div>
+          <button
+            onClick={() => setNewCountryEnabled(!newCountryEnabled)}
+            className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ml-3 ${
+              newCountryEnabled ? "bg-gold" : "bg-secondary"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background transition-transform ${
+                newCountryEnabled ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {newCountryEnabled && (
+          <div className="ml-5">
+            <label className="block text-[10px] text-muted-foreground mb-1">Min Blocks Before Alert</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={1000}
+                step={5}
+                value={countryMinBlocks}
+                onChange={(e) => setCountryMinBlocks(parseInt(e.target.value))}
+                className="flex-1 accent-gold"
+              />
+              <span className="text-xs font-mono text-foreground w-12 text-right tabular-nums">
+                {countryMinBlocks}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* New Port */}
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-severity-medium" />
+              <label className="text-xs text-foreground font-medium">New Port Detection</label>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
+              Alert when a previously unseen port is targeted (10+ hits)
+            </p>
+          </div>
+          <button
+            onClick={() => setNewPortEnabled(!newPortEnabled)}
+            className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ml-3 ${
+              newPortEnabled ? "bg-gold" : "bg-secondary"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background transition-transform ${
+                newPortEnabled ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Cooldown */}
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1">Alert Cooldown</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={5}
+              max={360}
+              step={5}
+              value={cooldownMinutes}
+              onChange={(e) => setCooldownMinutes(parseInt(e.target.value))}
+              className="flex-1 accent-gold"
+            />
+            <span className="text-xs font-mono text-foreground w-16 text-right tabular-nums">
+              {cooldownMinutes >= 60
+                ? `${Math.floor(cooldownMinutes / 60)}h ${cooldownMinutes % 60 ? `${cooldownMinutes % 60}m` : ""}`
+                : `${cooldownMinutes}m`}
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Minimum time between alerts of the same type to prevent spam
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <History className="w-3 h-3" />
+          {showHistory ? "Hide" : "Show"} Alert History
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saveMutation.isPending}
+          className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-md bg-gold text-background hover:bg-gold/90 transition-all disabled:opacity-50"
+        >
+          {saveMutation.isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Bell className="w-3.5 h-3.5" />
+          )}
+          Save Alert Settings
+        </button>
+      </div>
+
+      {/* Alert History */}
+      {showHistory && (
+        <div className="mt-4 pt-4 border-t border-border">
+          <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-2">
+            <History className="w-3.5 h-3.5 text-gold" />
+            Recent Alerts
+          </h3>
+          {alertHistoryQuery.isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : !alertHistoryQuery.data?.length ? (
+            <p className="text-[10px] text-muted-foreground text-center py-4">
+              No alerts have been triggered yet
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {alertHistoryQuery.data.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-2 p-2 rounded-md bg-secondary/30 border border-border"
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
+                    alert.alertType === "block_spike" ? "bg-severity-critical" :
+                    alert.alertType === "new_country" ? "bg-severity-high" : "bg-severity-medium"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-foreground font-medium truncate">
+                      {alert.title}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {new Date(alert.triggeredAt).toLocaleString()}
+                      {alert.delivered ? (
+                        <span className="ml-2 text-severity-low">✓ Delivered</span>
+                      ) : (
+                        <span className="ml-2 text-severity-critical">✗ Failed</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </GlassCard>
   );
 }

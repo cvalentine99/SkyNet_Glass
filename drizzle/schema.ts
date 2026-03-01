@@ -1,4 +1,4 @@
-import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, json, mysqlEnum, mysqlTable, text, timestamp, varchar, float } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -41,6 +41,10 @@ export const skynetConfig = mysqlTable("skynet_config", {
   username: varchar("username", { length: 255 }),
   /** Router HTTP Basic Auth password (optional, stored encrypted) */
   password: varchar("password", { length: 512 }),
+  /** Router geographic latitude (for Threat Map target location) */
+  targetLat: float("targetLat"),
+  /** Router geographic longitude (for Threat Map target location) */
+  targetLng: float("targetLng"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -85,6 +89,8 @@ export const skynetStatsHistory = mysqlTable("skynet_stats_history", {
   uniqueCountries: int("uniqueCountries").notNull().default(0),
   /** Number of unique ports targeted in this snapshot */
   uniquePorts: int("uniquePorts").notNull().default(0),
+  /** Country distribution JSON — array of {code, country, blocks} */
+  countryData: json("countryData"),
   /** Content hash of the stats.js that produced this snapshot */
   contentHash: varchar("contentHash", { length: 64 }),
   /** When this snapshot was taken */
@@ -92,3 +98,48 @@ export const skynetStatsHistory = mysqlTable("skynet_stats_history", {
 });
 
 export type SkynetStatsHistory = typeof skynetStatsHistory.$inferSelect;
+
+/**
+ * Alert configuration — stores thresholds and toggles for notifications.
+ * Singleton row (one per installation).
+ */
+export const skynetAlertConfig = mysqlTable("skynet_alert_config", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Enable/disable all alerts */
+  alertsEnabled: int("alertsEnabled").notNull().default(0),
+  /** Notify when total blocks increase by this amount in one polling cycle */
+  blockSpikeThreshold: int("blockSpikeThreshold").notNull().default(1000),
+  /** Enable block spike alerts */
+  blockSpikeEnabled: int("blockSpikeEnabled").notNull().default(1),
+  /** Notify when a new country appears in the data */
+  newCountryEnabled: int("newCountryEnabled").notNull().default(1),
+  /** Notify when a new port is targeted that wasn't seen before */
+  newPortEnabled: int("newPortEnabled").notNull().default(0),
+  /** Minimum blocks from a country before alerting (prevents noise) */
+  countryMinBlocks: int("countryMinBlocks").notNull().default(50),
+  /** Cooldown in minutes between alerts of the same type */
+  cooldownMinutes: int("cooldownMinutes").notNull().default(30),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SkynetAlertConfig = typeof skynetAlertConfig.$inferSelect;
+
+/**
+ * Alert history — log of all notifications sent.
+ */
+export const skynetAlertHistory = mysqlTable("skynet_alert_history", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Alert type: block_spike, new_country, new_port */
+  alertType: varchar("alertType", { length: 50 }).notNull(),
+  /** Human-readable title */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** Detailed message content */
+  content: text("content").notNull(),
+  /** Whether the notification was successfully delivered */
+  delivered: int("delivered").notNull().default(0),
+  /** When the alert was triggered */
+  triggeredAt: timestamp("triggeredAt").defaultNow().notNull(),
+});
+
+export type SkynetAlertHistory = typeof skynetAlertHistory.$inferSelect;

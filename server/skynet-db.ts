@@ -1,6 +1,16 @@
 import { eq, desc, gte } from "drizzle-orm";
 import { getDb } from "./db";
-import { skynetConfig, skynetStatsCache, skynetStatsHistory, type SkynetConfig, type SkynetStatsHistory } from "../drizzle/schema";
+import {
+  skynetConfig,
+  skynetStatsCache,
+  skynetStatsHistory,
+  skynetAlertConfig,
+  skynetAlertHistory,
+  type SkynetConfig,
+  type SkynetStatsHistory,
+  type SkynetAlertConfig,
+  type SkynetAlertHistory,
+} from "../drizzle/schema";
 import type { SkynetStats } from "./skynet-parser";
 
 // ─── Config CRUD ────────────────────────────────────────────
@@ -21,13 +31,15 @@ export async function upsertSkynetConfig(config: {
   pollingEnabled: boolean;
   username?: string | null;
   password?: string | null;
+  targetLat?: number | null;
+  targetLng?: number | null;
 }): Promise<SkynetConfig> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   const existing = await getSkynetConfig();
 
-  const values = {
+  const values: Record<string, any> = {
     routerAddress: config.routerAddress,
     routerPort: config.routerPort,
     routerProtocol: config.routerProtocol,
@@ -38,19 +50,43 @@ export async function upsertSkynetConfig(config: {
     password: config.password ?? null,
   };
 
+  // Only update target location if explicitly provided
+  if (config.targetLat !== undefined) {
+    values.targetLat = config.targetLat;
+  }
+  if (config.targetLng !== undefined) {
+    values.targetLng = config.targetLng;
+  }
+
   if (existing) {
     await db
       .update(skynetConfig)
       .set(values)
       .where(eq(skynetConfig.id, existing.id));
 
-    return { ...existing, ...values };
+    return { ...existing, ...values } as SkynetConfig;
   }
 
-  await db.insert(skynetConfig).values(values);
+  await db.insert(skynetConfig).values(values as any);
 
   const inserted = await getSkynetConfig();
   return inserted!;
+}
+
+/**
+ * Update just the target location fields.
+ */
+export async function updateTargetLocation(lat: number | null, lng: number | null): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const existing = await getSkynetConfig();
+  if (!existing) return;
+
+  await db
+    .update(skynetConfig)
+    .set({ targetLat: lat, targetLng: lng })
+    .where(eq(skynetConfig.id, existing.id));
 }
 
 // ─── Stats Cache ────────────────────────────────────────────
@@ -100,6 +136,7 @@ export async function getLastContentHash(): Promise<string | null> {
 /**
  * Save a historical stats snapshot.
  * Called after each successful stats fetch when data has changed.
+ * Now also stores country distribution data for historical playback.
  */
 export async function saveStatsSnapshot(params: {
   ipsBanned: number;
@@ -110,6 +147,7 @@ export async function saveStatsSnapshot(params: {
   uniqueCountries: number;
   uniquePorts: number;
   contentHash: string;
+  countryData?: Array<{ code: string; country: string; blocks: number }>;
 }): Promise<void> {
   const db = await getDb();
   if (!db) return;
@@ -122,6 +160,7 @@ export async function saveStatsSnapshot(params: {
     totalBlocks: params.totalBlocks,
     uniqueCountries: params.uniqueCountries,
     uniquePorts: params.uniquePorts,
+    countryData: params.countryData ? (params.countryData as any) : null,
     contentHash: params.contentHash,
     snapshotAt: new Date(),
   });
@@ -146,4 +185,101 @@ export async function getStatsHistory(hoursBack: number = 24, limit: number = 50
     .limit(limit);
 
   return rows;
+}
+
+// ─── Alert Config CRUD ─────────────────────────────────────
+
+export async function getAlertConfig(): Promise<SkynetAlertConfig | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(skynetAlertConfig).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertAlertConfig(config: {
+  alertsEnabled: boolean;
+  blockSpikeThreshold: number;
+  blockSpikeEnabled: boolean;
+  newCountryEnabled: boolean;
+  newPortEnabled: boolean;
+  countryMinBlocks: number;
+  cooldownMinutes: number;
+}): Promise<SkynetAlertConfig> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getAlertConfig();
+
+  const values = {
+    alertsEnabled: config.alertsEnabled ? 1 : 0,
+    blockSpikeThreshold: config.blockSpikeThreshold,
+    blockSpikeEnabled: config.blockSpikeEnabled ? 1 : 0,
+    newCountryEnabled: config.newCountryEnabled ? 1 : 0,
+    newPortEnabled: config.newPortEnabled ? 1 : 0,
+    countryMinBlocks: config.countryMinBlocks,
+    cooldownMinutes: config.cooldownMinutes,
+  };
+
+  if (existing) {
+    await db
+      .update(skynetAlertConfig)
+      .set(values)
+      .where(eq(skynetAlertConfig.id, existing.id));
+    return { ...existing, ...values } as SkynetAlertConfig;
+  }
+
+  await db.insert(skynetAlertConfig).values(values);
+  const inserted = await getAlertConfig();
+  return inserted!;
+}
+
+// ─── Alert History ──────────────────────────────────────────
+
+export async function saveAlertRecord(params: {
+  alertType: string;
+  title: string;
+  content: string;
+  delivered: boolean;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(skynetAlertHistory).values({
+    alertType: params.alertType,
+    title: params.title,
+    content: params.content,
+    delivered: params.delivered ? 1 : 0,
+    triggeredAt: new Date(),
+  });
+}
+
+export async function getAlertHistory(limit: number = 50): Promise<SkynetAlertHistory[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select()
+    .from(skynetAlertHistory)
+    .orderBy(desc(skynetAlertHistory.triggeredAt))
+    .limit(limit);
+
+  return rows;
+}
+
+/**
+ * Get the most recent alert of a given type.
+ * Used for cooldown checks.
+ */
+export async function getLastAlertOfType(alertType: string): Promise<SkynetAlertHistory | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select()
+    .from(skynetAlertHistory)
+    .where(eq(skynetAlertHistory.alertType, alertType))
+    .orderBy(desc(skynetAlertHistory.triggeredAt))
+    .limit(1);
+
+  return rows[0] ?? null;
 }

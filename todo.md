@@ -285,3 +285,45 @@
 - [x] 0 TypeScript errors, 0 console errors (only deprecation warning from Three.js Clock)
 - [x] Full-screen layout — fills entire viewport with no scrolling
 - [x] Responsive: HUD panels adapt, globe fills available space
+
+## Phase 15: Notifications, Target Location, Historical Playback
+
+### Pre-flight: Core Function Audit
+- [x] Run full test suite — all 157 tests pass (7 files)
+- [x] Verify 0 TypeScript errors
+- [x] Audit all 28 existing tRPC routes intact (auth, config, stats, ban, unban, whitelist, logs, ipsets, geoip, testConnection)
+
+### Feature 1 — Configurable Target Location
+- [x] Add targetLat / targetLng fields to skynetConfig table in DB schema
+- [x] Default to US center (37.09, -95.71) when not set
+- [x] ThreatMap reads target location via trpc.skynet.getTargetLocation and uses for arc endpoints + target ring
+- [x] Added "Router Location" section in Settings with lat/lng number inputs + Save Location button
+- [x] Added getTargetLocation and saveTargetLocation tRPC routes
+
+### Feature 2 — Notification Alerts
+- [x] Added skynetAlerts table to DB schema (alertType, title, content, delivered, triggeredAt)
+- [x] Added alert config fields to skynetConfig (alertsEnabled, blockSpikeEnabled, blockSpikeThreshold, newCountryEnabled, countryMinBlocks, newPortEnabled, cooldownMinutes)
+- [x] Built server-side alert checker (skynet-alerts.ts) with baseline tracking and cooldown logic
+- [x] Wired checkAlerts() into fetchStatsFromRouter — runs after every successful stats fetch
+- [x] Triggers notifyOwner() for block spikes, new countries, and new ports
+- [x] Added "Notification Alerts" section in Settings with toggle switches, threshold sliders, cooldown config
+- [x] Added "Show Alert History" button and alert history display
+- [x] Added getAlertConfig, saveAlertConfig, getAlertHistory tRPC routes
+
+### Feature 3 — Historical Playback
+- [x] Extended getHistory route to include countryData from history snapshots
+- [x] Added countryData JSON column to statsHistory table
+- [x] fetchStatsFromRouter now saves countryDistribution in history snapshots
+- [x] Added timeline slider to ThreatMap with range input and tick marks
+- [x] Globe data (arcs, rings, points, labels) updates based on selected snapshot
+- [x] Playback controls: play/pause, skip-back, skip-forward, drag slider
+- [x] Auto-advance at 2s intervals during playback
+- [x] Timestamp overlay shows date, time, total blocks, and snapshot index
+- [x] HISTORY/PLAYBACK toggle button in bottom timeline bar
+
+### Tests & Regression
+- [x] Wrote 11 tests for alert baseline initialization and state tracking (skynet-alerts.test.ts)
+- [x] Run full regression — 168 tests pass across 8 test files
+- [x] 0 TypeScript errors
+- [x] 34 tRPC routes verified intact (up from 28 — 6 new routes added)
+- [x] Only console warnings: Three.js Clock deprecation (harmless, from globe.gl dependency)
