@@ -490,3 +490,14 @@
 - [x] Include systemd service file, Nginx reverse proxy config, SSL setup
 - [x] Include LAN-only mode (no auth), firewall, backup strategy, troubleshooting
 - [ ] Deliver guide to user
+
+## Phase 22: LAN-Only Auth Bypass + GitHub Push
+
+- [x] Bypass Manus OAuth in server context — always return local admin user
+- [x] Disable OAuth callback routes gracefully (redirect to /)
+- [x] Update frontend to skip OAuth login redirect (main.tsx cleaned)
+- [x] Remove/disable login button and OAuth portal references (const.ts, useAuth.ts)
+- [x] Update frontend useAuth hook for LAN-only mode
+- [x] Write 9 tests verifying LAN-only auth bypass (287 total pass)
+- [x] Rebuild production bundle (builds cleanly)
+- [ ] Push to connected GitHub repo
