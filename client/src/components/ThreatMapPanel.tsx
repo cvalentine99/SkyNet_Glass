@@ -161,7 +161,7 @@ export function ThreatMapPanel({ countryData }: ThreatMapPanelProps) {
       {hasData ? (
         <div
           className="rounded-lg overflow-hidden border border-border/50 relative"
-          style={{ background: "#060610" }}
+          style={{ background: "#0a0f1a" }}
         >
           <ComposableMap
             projection="geoMercator"

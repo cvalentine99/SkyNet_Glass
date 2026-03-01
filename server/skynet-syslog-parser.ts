@@ -102,6 +102,9 @@ export function parseDirection(line: string): SkynetLogDirection | null {
   if (line.includes("[BLOCKED - OUTBOUND]")) return "OUTBOUND";
   if (line.includes("[BLOCKED - INVALID]")) return "INVALID";
   if (line.includes("[BLOCKED - IOT]")) return "IOT";
+  // Handle PRIOR patterns from iptables LOG
+  if (line.includes("PRIOR1IN") || line.includes("PRIOR2IN")) return "INBOUND";
+  if (line.includes("PRIOR1OUT") || line.includes("PRIOR2OUT")) return "OUTBOUND";
   return null;
 }
 
@@ -158,8 +161,8 @@ export function parseSyslogLine(line: string, lineNum: number): SkynetLogEntry |
     length: parseInt(extractField(line, "LEN"), 10) || 0,
     ttl: parseInt(extractField(line, "TTL"), 10) || 0,
     protocol: extractField(line, "PROTO"),
-    srcPort: parseInt(extractField(line, "SPT"), 10) || 0,
-    dstPort: parseInt(extractField(line, "DPT"), 10) || 0,
+    srcPort: extractField(line, "PROTO") === "ICMP" ? 0 : parseInt(extractField(line, "SPT"), 10) || 0,
+    dstPort: extractField(line, "PROTO") === "ICMP" ? 0 : parseInt(extractField(line, "DPT"), 10) || 0,
     tcpFlags: extractTcpFlags(line),
     raw: line,
   };

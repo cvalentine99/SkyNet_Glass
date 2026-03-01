@@ -73,7 +73,7 @@ export async function fetchStatsFromRouter(): Promise<{
     const ssh = buildSSHConfig(config);
 
     // Read stats.js directly from the router filesystem
-    const result = await sshExec(ssh, "cat /tmp/var/wwwext/skynet/stats.js 2>/dev/null", { timeout: 15000 });
+    const result = await sshExec(ssh, "cat /tmp/var/wwwext/skynet/stats.js 2>/dev/null", { timeout: 30000 });
 
     if (result.code !== 0 || !result.stdout.trim()) {
       // Try alternate location
@@ -494,8 +494,8 @@ export async function fetchSyslog(options?: {
     const ssh = buildSSHConfig(config);
     const maxLines = options?.maxLines || 500;
 
-    // Grep for BLOCKED lines across all syslog files
-    const cmd = `grep "BLOCKED" /tmp/syslog.log /tmp/syslog.log-1 /jffs/syslog.log /jffs/syslog.log-1 2>/dev/null | tail -${maxLines}`;
+    // Grep for Skynet patterns across all syslog files
+    const cmd = `tail -n ${maxLines} /tmp/syslog.log 2>/dev/null | grep -iE "PRIOR|skynet|DROP|REJECT|BLOCKED|DENY"`;
     const result = await sshExec(ssh, cmd, { timeout: 15000 });
 
     return { raw: result.stdout, error: null };
@@ -531,7 +531,7 @@ export async function fetchIpsetData(options?: {
       cmd = `cat /opt/share/skynet/skynet.ipset 2>/dev/null || { ipset save Skynet-Blacklist; ipset save Skynet-BlockedRanges; ipset save Skynet-Whitelist; ipset save Skynet-WhitelistDomains; } 2>/dev/null`;
     }
 
-    const result = await sshExec(ssh, cmd, { timeout: 30000 });
+    const result = await sshExec(ssh, cmd, { timeout: 60000 });
     return { raw: result.stdout, error: null };
   } catch (err: any) {
     return { raw: "", error: `Failed to fetch ipset data: ${formatSSHError(err)}` };

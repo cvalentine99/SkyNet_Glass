@@ -154,9 +154,9 @@ export function TrendChart() {
         <div className="h-[280px] flex flex-col items-center justify-center gap-3">
           <BarChart3 className="w-8 h-8 text-muted-foreground/30" />
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">No historical data yet</p>
+            <p className="text-xs text-muted-foreground">Collecting data... Trends will appear after multiple polling cycles</p>
             <p className="text-[10px] text-muted-foreground/60 mt-1">
-              Trend data is recorded each time stats change. Connect your router and let it collect data over time.
+              Historical data requires at least 2 data points. Connect your router and let it collect data over time.
             </p>
           </div>
         </div>
