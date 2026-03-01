@@ -171,3 +171,34 @@
 ### Tests
 - [x] Write vitest tests for new ban/unban/whitelist commands (44 tests)
 - [x] Verify all tests pass (78 total tests, 5 test files)
+
+## Phase 12: Real-Time Syslog Viewer
+
+### Research
+- [x] Study Skynet syslog format from firewall.sh (iptables LOG prefixes, field extraction)
+- [x] Identify log entry fields: timestamp, hostname, direction, IN/OUT interface, MAC, SRC/DST IP, LEN, TTL, PROTO, SPT/DPT, TCP flags
+
+### Backend — Syslog Parser & Routes
+- [x] Build syslog parser (skynet-syslog-parser.ts) with parseSyslogLine, parseSyslogLines, filterLogEntries, summarizeLogEntries
+- [x] Add tRPC route: skynet.getLogs — fetches syslog via SystemCmd + cmdRet_check.htm, parses and filters
+- [x] Support filtering by direction (INBOUND/OUTBOUND/INVALID/IOT/ALL), IP, port, protocol
+- [x] Limit output to configurable maxLines (50-2000) via tail command
+- [x] Auto-refresh support via tRPC refetchInterval on frontend
+
+### Frontend — Logs Viewer Page
+- [x] Create /logs route with Logs viewer page
+- [x] Add "Logs" tab to sidebar navigation (shortcut 6)
+- [x] Build log table with 8-column grid (Dir, Time, Source IP, Dest IP, Proto, Src Port, Dst Port, Details)
+- [x] Add filter controls (direction dropdown, IP search, protocol dropdown, port input, max lines)
+- [x] Add real-time auto-refresh toggle with configurable interval (5s/10s/30s/60s)
+- [x] Color-code log entries by direction (orange=inbound, blue=outbound, red=invalid, yellow=IOT)
+- [x] Add expandable row detail (interface, packet length, TTL, TCP flags, hostname, timestamp, service, line#)
+- [x] Ultrawide-optimized 2-column layout (table + summary sidebar at 2xl breakpoint)
+- [x] Summary sidebar: direction breakdown, unique IPs, time span, top source IPs, top targeted ports, protocol breakdown
+- [x] Clickable summary items to auto-filter (click IP → filter by IP, click port → filter by port)
+- [x] Keyboard shortcut: R to refresh
+- [x] Well-known port → service name mapping (SSH, HTTP, HTTPS, RDP, etc.)
+
+### Tests
+- [x] Write vitest tests for syslog parser (48 tests covering parsing, filtering, summarizing)
+- [x] Verify all tests pass (126 total tests, 6 test files)

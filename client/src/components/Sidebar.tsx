@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Download,
   ShieldAlert,
+  ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,7 +41,8 @@ const navItems: SidebarItem[] = [
   { icon: Globe, label: "Threat Map", id: "threats", scrollTo: "section-threats", shortcut: "3" },
   { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections", shortcut: "4" },
   { icon: ShieldAlert, label: "Manage", id: "manage", route: "/manage", shortcut: "5" },
-  { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "6" },
+  { icon: ScrollText, label: "Logs", id: "logs", route: "/logs", shortcut: "6" },
+  { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "7" },
 ];
 
 // Section IDs that the scroll-spy observes
@@ -120,7 +122,9 @@ export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarP
         ? "settings"
         : location === "/manage"
           ? "manage"
-          : propActiveSection ?? "dashboard";
+          : location === "/logs"
+            ? "logs"
+            : propActiveSection ?? "dashboard";
 
   const handleClick = useCallback(
     (item: SidebarItem) => {

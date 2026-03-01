@@ -481,6 +481,87 @@ export async function refreshWhitelist(): Promise<{
   return executeRouterCommand(cmd);
 }
 
+// ─── Syslog Fetcher ────────────────────────────────────────
+
+/**
+ * Fetch syslog / skynet.log from the router.
+ *
+ * Strategy:
+ *   1. Try to read the consolidated skynet.log via SystemCmd + cmdRet
+ *   2. The router's apply.cgi writes command output to /tmp/syscmd.log
+ *      which we can then fetch via HTTP.
+ *
+ * We use `cat <logfile> | tail -<lines>` to limit output size.
+ * Default log path: /tmp/syslog.log (can also be /jffs/syslog.log or custom)
+ */
+export async function fetchSyslog(options?: {
+  logPath?: string;
+  maxLines?: number;
+}): Promise<{
+  raw: string;
+  error: string | null;
+}> {
+  try {
+    const config = await getSkynetConfig();
+    if (!config) {
+      return { raw: "", error: "No router configuration found" };
+    }
+
+    const baseUrl = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}`;
+    const authHeaders = buildAuthHeaders(config.username, config.password);
+    const httpsAgent = await getHttpsAgent(config.routerProtocol);
+    const logPath = options?.logPath || "/tmp/syslog.log";
+    const maxLines = options?.maxLines || 500;
+
+    // Step 1: Execute cat command on the router to read syslog
+    // We grep for BLOCKED lines and tail to limit output
+    const cmd = `grep "BLOCKED" ${logPath} /tmp/syslog.log-1 /jffs/syslog.log /jffs/syslog.log-1 2>/dev/null | tail -${maxLines}`;
+
+    await axios.post(
+      `${baseUrl}/apply.cgi`,
+      new URLSearchParams({
+        current_page: "Main_Analysis_Content.asp",
+        next_page: "Main_Analysis_Content.asp",
+        action_mode: " Refresh ",
+        SystemCmd: cmd,
+      }).toString(),
+      {
+        timeout: 15000,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: `${baseUrl}/Main_Analysis_Content.asp`,
+          ...authHeaders,
+        },
+        httpsAgent,
+      }
+    );
+
+    // Step 2: Fetch the command output from /tmp/syscmd.log
+    // The router writes SystemCmd output to this file
+    const outputResponse = await axios.get(`${baseUrl}/cmdRet_check.htm`, {
+      timeout: 10000,
+      headers: {
+        Referer: `${baseUrl}/Main_Analysis_Content.asp`,
+        ...authHeaders,
+      },
+      httpsAgent,
+    });
+
+    // The response is wrapped in <pre> tags
+    let raw = outputResponse.data as string;
+    // Strip HTML wrapper if present
+    raw = raw.replace(/<[^>]+>/g, "").trim();
+
+    return { raw, error: null };
+  } catch (err: any) {
+    const errorMsg =
+      err.response?.status === 401 || err.response?.status === 403
+        ? "Authentication failed — check router credentials"
+        : `Failed to fetch syslog: ${err.message}`;
+    return { raw: "", error: errorMsg };
+  }
+}
+
 // ─── Polling Manager ────────────────────────────────────────
 
 export async function startPolling(): Promise<void> {

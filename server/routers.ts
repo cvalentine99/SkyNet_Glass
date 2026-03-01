@@ -25,7 +25,14 @@ import {
   removeWhitelistIP,
   removeWhitelistDomain,
   refreshWhitelist,
+  fetchSyslog,
 } from "./skynet-fetcher";
+import {
+  parseSyslogLines,
+  filterLogEntries,
+  summarizeLogEntries,
+  type LogFilter,
+} from "./skynet-syslog-parser";
 
 export const appRouter = router({
   system: systemRouter,
@@ -310,6 +317,82 @@ export const appRouter = router({
           uniquePorts: h.uniquePorts,
           snapshotAt: h.snapshotAt,
         }));
+      }),
+
+    // ─── Syslog / Log Viewer ─────────────────────────────────
+
+    /**
+     * Fetch and parse syslog entries from the router.
+     * Returns structured log entries with optional filtering.
+     *
+     * API command: grep "BLOCKED" /tmp/syslog.log ... | tail -N
+     * Executed via: POST /apply.cgi { SystemCmd: "..." }
+     * Output read from: GET /cmdRet_check.htm
+     */
+    getLogs: publicProcedure
+      .input(
+        z.object({
+          maxLines: z.number().int().min(50).max(2000).default(500),
+          direction: z.enum(["INBOUND", "OUTBOUND", "INVALID", "IOT", "ALL"]).default("ALL"),
+          ipSearch: z.string().optional(),
+          protocol: z.string().optional(),
+          port: z.number().int().min(1).max(65535).optional(),
+          dstPort: z.number().int().min(1).max(65535).optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const result = await fetchSyslog({ maxLines: input.maxLines });
+
+        if (result.error) {
+          return {
+            entries: [],
+            summary: null,
+            error: result.error,
+            rawLineCount: 0,
+          };
+        }
+
+        // Parse all lines
+        const entries = parseSyslogLines(result.raw);
+
+        // Apply filters
+        const filter: LogFilter = {};
+        if (input.direction && input.direction !== "ALL") filter.direction = input.direction;
+        if (input.ipSearch) filter.ipSearch = input.ipSearch;
+        if (input.protocol) filter.protocol = input.protocol;
+        if (input.port) filter.port = input.port;
+        if (input.dstPort) filter.dstPort = input.dstPort;
+
+        const filteredEntries = filterLogEntries(entries, filter);
+        const summary = summarizeLogEntries(entries);
+
+        // Return newest first, limit to 500 for performance
+        const sortedEntries = filteredEntries
+          .sort((a, b) => b.date.getTime() - a.date.getTime())
+          .slice(0, 500);
+
+        return {
+          entries: sortedEntries.map(e => ({
+            lineNum: e.lineNum,
+            timestamp: e.timestamp,
+            date: e.date,
+            hostname: e.hostname,
+            direction: e.direction,
+            inInterface: e.inInterface,
+            outInterface: e.outInterface,
+            srcIp: e.srcIp,
+            dstIp: e.dstIp,
+            length: e.length,
+            ttl: e.ttl,
+            protocol: e.protocol,
+            srcPort: e.srcPort,
+            dstPort: e.dstPort,
+            tcpFlags: e.tcpFlags,
+          })),
+          summary,
+          error: null,
+          rawLineCount: entries.length,
+        };
       }),
 
     /** Test connection to the router */
