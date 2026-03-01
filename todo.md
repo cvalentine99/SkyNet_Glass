@@ -501,3 +501,12 @@
 - [x] Write 9 tests verifying LAN-only auth bypass (287 total pass)
 - [x] Rebuild production bundle (builds cleanly)
 - [x] Push to connected GitHub repo (cvalentine99/SkyNet_Glass)
+
+## Phase 23: Slim .env — Remove Unused OAuth/Forge Variables
+
+- [x] Slim env.ts — documented required vs optional vs deprecated vars
+- [x] Kept forgeApiUrl/Key as optional (notifications still work if set)
+- [x] Rewrote DEPLOY-BAREMETAL.md — LAN-only is now the default, only 4 env vars shown
+- [x] Created ENV-REFERENCE.md with full variable reference table
+- [x] All 287 tests pass, production build clean
+- [ ] Push to GitHub
