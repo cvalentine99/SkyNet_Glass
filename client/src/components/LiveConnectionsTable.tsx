@@ -35,6 +35,7 @@ import {
   Check,
   Ban,
   Search,
+  Monitor,
 } from "lucide-react";
 
 export interface ConnectionEntry {
@@ -292,6 +293,14 @@ function ConnectionDetail({ conn, direction }: { conn: ConnectionEntry; directio
                 AlienVault OTX
               </a>
             )}
+            <a
+              href={`/devices?ip=${encodeURIComponent(conn.ip)}`}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold border
+                bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border-purple-500/20 transition-all"
+            >
+              <Monitor className="w-3 h-3" />
+              Block Device
+            </a>
             <a
               href={`/ipsets?search=${encodeURIComponent(conn.ip)}`}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold border

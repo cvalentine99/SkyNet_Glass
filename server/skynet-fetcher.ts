@@ -900,6 +900,109 @@ export async function startPolling(): Promise<void> {
   console.log(`[Skynet] Polling started — interval: ${config.pollingInterval}s`);
 }
 
+// ─── IOT Device Blocking ───────────────────────────────────
+
+/**
+ * Block a LAN device via Skynet IOT.
+ * Executes: firewall iot ban <ip>
+ * This adds the device IP to the Skynet-IOT ipset, blocking all outbound
+ * traffic except allowed ports (default: 123/NTP).
+ */
+export async function iotBanDevice(ip: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+  // Validate it's a private/LAN IP
+  if (!isPrivateIP(ip)) {
+    return { success: false, error: `${ip} is not a LAN IP address` };
+  }
+  const cmd = `/jffs/scripts/firewall iot ban ${ip}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Unblock a LAN device via Skynet IOT.
+ * Executes: firewall iot unban <ip>
+ */
+export async function iotUnbanDevice(ip: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+  const cmd = `/jffs/scripts/firewall iot unban ${ip}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Block all traffic for a LAN device (full ban via Skynet blacklist).
+ * Uses: firewall ban ip <ip> "DeviceBlock: <reason>"
+ * This is more aggressive than IOT ban — blocks all inbound AND outbound.
+ */
+export async function fullBanDevice(ip: string, reason?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+  const desc = reason || `DeviceBlock via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  const safeComment = desc.replace(/[;"'\`$\\|&<>]/g, "").slice(0, 200);
+  const cmd = `/jffs/scripts/firewall ban ip ${ip} "${safeComment}"`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Set allowed ports for IOT-blocked devices.
+ * Executes: firewall iot ports <port1,port2,...>
+ * Or: firewall iot ports reset (to reset to default 123 only)
+ */
+export async function iotSetPorts(ports: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  // Validate: either "reset" or comma-separated port numbers
+  if (ports !== "reset" && !/^\d{1,5}(,\d{1,5})*$/.test(ports)) {
+    return { success: false, error: `Invalid port specification: ${ports}` };
+  }
+  const cmd = `/jffs/scripts/firewall iot ports ${ports}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Set allowed protocol for IOT-blocked devices.
+ * Executes: firewall iot proto <udp|tcp|all>
+ */
+export async function iotSetProto(proto: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!['udp', 'tcp', 'all'].includes(proto)) {
+    return { success: false, error: `Invalid protocol: ${proto}. Must be udp, tcp, or all` };
+  }
+  const cmd = `/jffs/scripts/firewall iot proto ${proto}`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Check if an IP is a private/LAN address.
+ */
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  // 10.0.0.0/8
+  if (parts[0] === 10) return true;
+  // 172.16.0.0/12
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  // 192.168.0.0/16
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  return false;
+}
+
 export function stopPolling(): void {
   if (pollingTimer) {
     clearInterval(pollingTimer);

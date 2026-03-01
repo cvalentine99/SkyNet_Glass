@@ -11,6 +11,11 @@ import {
   getAlertConfig,
   upsertAlertConfig,
   getAlertHistory,
+  getDevicePolicies,
+  getDevicePolicyByIp,
+  createDevicePolicy,
+  updateDevicePolicyEnabled,
+  deleteDevicePolicy,
 } from "./skynet-db";
 import {
   buildAuthHeaders,
@@ -38,6 +43,11 @@ import {
   bulkBanImport,
   fetchDnsmasqLog,
   fetchDhcpLeases,
+  iotBanDevice,
+  iotUnbanDevice,
+  fullBanDevice,
+  iotSetPorts,
+  iotSetProto,
 } from "./skynet-fetcher";
 import {
   parseIpsetLines,
@@ -719,6 +729,134 @@ export const appRouter = router({
 
       return { devices, error: null };
     }),
+
+    // ─── Device Policies ──────────────────────────────────
+
+    /** List all device policies */
+    getDevicePolicies: publicProcedure.query(async () => {
+      const policies = await getDevicePolicies();
+      return policies;
+    }),
+
+    /** Create a new device policy and apply it on the router */
+    createDevicePolicy: publicProcedure
+      .input(
+        z.object({
+          deviceIp: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/),
+          deviceName: z.string().optional(),
+          macAddress: z.string().optional(),
+          policyType: z.enum(["block_outbound", "block_all"]),
+          reason: z.string().max(500).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        // Check if policy already exists for this IP
+        const existing = await getDevicePolicyByIp(input.deviceIp);
+        if (existing) {
+          return { success: false, error: `Policy already exists for ${input.deviceIp}`, policy: existing };
+        }
+
+        // Apply on router
+        let result;
+        if (input.policyType === "block_outbound") {
+          result = await iotBanDevice(input.deviceIp);
+        } else {
+          result = await fullBanDevice(input.deviceIp, input.reason);
+        }
+
+        if (!result.success) {
+          return { success: false, error: result.error, policy: null };
+        }
+
+        // Save to DB
+        const policy = await createDevicePolicy({
+          deviceIp: input.deviceIp,
+          deviceName: input.deviceName,
+          macAddress: input.macAddress,
+          policyType: input.policyType,
+          reason: input.reason,
+        });
+
+        return { success: true, error: null, policy };
+      }),
+
+    /** Remove a device policy and unblock on the router */
+    removeDevicePolicy: publicProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input }) => {
+        const policies = await getDevicePolicies();
+        const policy = policies.find(p => p.id === input.id);
+        if (!policy) {
+          return { success: false, error: "Policy not found" };
+        }
+
+        // Unblock on router
+        let result;
+        if (policy.policyType === "block_outbound") {
+          result = await iotUnbanDevice(policy.deviceIp);
+        } else {
+          // For full ban, unban the IP from Skynet blacklist
+          result = await unbanIP(policy.deviceIp);
+        }
+
+        // Delete from DB regardless (user wants it removed)
+        await deleteDevicePolicy(input.id);
+
+        return { success: true, error: result.success ? null : result.error };
+      }),
+
+    /** Toggle a device policy enabled/disabled */
+    toggleDevicePolicy: publicProcedure
+      .input(z.object({
+        id: z.number().int(),
+        enabled: z.boolean(),
+      }))
+      .mutation(async ({ input }) => {
+        const policies = await getDevicePolicies();
+        const policy = policies.find(p => p.id === input.id);
+        if (!policy) {
+          return { success: false, error: "Policy not found" };
+        }
+
+        if (input.enabled) {
+          // Re-enable: apply block on router
+          const result = policy.policyType === "block_outbound"
+            ? await iotBanDevice(policy.deviceIp)
+            : await fullBanDevice(policy.deviceIp, policy.reason ?? undefined);
+          if (!result.success) {
+            return { success: false, error: result.error };
+          }
+        } else {
+          // Disable: unblock on router
+          const result = policy.policyType === "block_outbound"
+            ? await iotUnbanDevice(policy.deviceIp)
+            : await unbanIP(policy.deviceIp);
+          if (!result.success) {
+            return { success: false, error: result.error };
+          }
+        }
+
+        await updateDevicePolicyEnabled(input.id, input.enabled);
+        return { success: true, error: null };
+      }),
+
+    /** Set allowed ports for IOT-blocked devices */
+    iotSetPorts: publicProcedure
+      .input(z.object({
+        ports: z.string().regex(/^(reset|\d{1,5}(,\d{1,5})*)$/),
+      }))
+      .mutation(async ({ input }) => {
+        return iotSetPorts(input.ports);
+      }),
+
+    /** Set allowed protocol for IOT-blocked devices */
+    iotSetProto: publicProcedure
+      .input(z.object({
+        proto: z.enum(["udp", "tcp", "all"]),
+      }))
+      .mutation(async ({ input }) => {
+        return iotSetProto(input.proto);
+      }),
 
     /** Test connection to the router */
     testConnection: publicProcedure

@@ -411,3 +411,43 @@
 - [x] All 244 tests pass across 10 test files
 - [x] 0 TypeScript errors, 0 console errors
 - [x] 37 tRPC routes verified intact
+
+## Phase 19: Per-Device Blocking Policies
+
+### Research
+- [x] Studied Skynet IOT commands: `firewall iot ban/unban IP`, `firewall iot view`, `firewall iot ports/proto`
+- [x] Identified two blocking modes: IOT (block outbound, allow LAN) and full ban (Skynet-Blacklist)
+- [x] IOT uses Skynet-IOT ipset + iptables FORWARD chain; full ban uses Skynet-Blacklist ipset
+
+### Backend — DB Schema & tRPC Routes
+- [x] Added devicePolicies table to DB schema (id, deviceIp, deviceName, macAddress, policyType enum, enabled, reason, createdAt, updatedAt)
+- [x] Added tRPC route: skynet.getDevicePolicies — list all device policies from DB
+- [x] Added tRPC route: skynet.createDevicePolicy — create policy + execute IOT ban or Skynet ban on router
+- [x] Added tRPC route: skynet.removeDevicePolicy — remove policy + execute IOT unban or Skynet unban
+- [x] Added tRPC route: skynet.toggleDevicePolicy — enable/disable with router command execution
+- [x] Added tRPC routes: skynet.iotSetPorts, skynet.iotSetProto — configure IOT allowed ports/protocols
+- [x] Added fetchIotBan, fetchIotUnban, fetchIotView, fetchIotSetPorts, fetchIotSetProto to skynet-fetcher.ts
+- [x] All commands execute real Skynet firewall commands: `firewall iot ban/unban`, `firewall ban`
+
+### Frontend — Device Policies Page
+- [x] Created /devices route with Device Policies management page
+- [x] Added "Devices" tab to sidebar navigation (shortcut 9, Settings moved to 0)
+- [x] Policy table with device name, IP, MAC, policy type, status badge, reason, created date, actions
+- [x] Add new policy form with IP input, device name, MAC, policy type dropdown, reason field
+- [x] Toggle enable/disable per policy with confirmation
+- [x] Delete policy with confirmation dialog
+- [x] IOT Configuration section: set allowed ports and protocol for IOT-blocked devices
+- [x] Search/filter across all policy fields
+- [x] 4 KPI stat cards: Total, Enabled, Block Outbound, Full Block
+- [x] Info section explaining how IOT blocking and full blocking work
+- [x] URL query param pre-fill: navigating to /devices?ip=X&name=Y auto-opens the add form
+
+### Quick Actions from Other Pages
+- [x] Added "Block Device" button to DNS Sinkhole expanded row Quick Actions → links to /devices?ip=X&name=Y
+- [x] Added "Block Device" button to Connections table expanded detail → links to /devices?ip=X
+- [x] Both buttons navigate to Device Policies page with pre-filled IP and auto-opened add form
+
+### Tests
+- [x] All 244 existing tests pass across 10 test files (no regressions)
+- [x] 0 TypeScript errors
+- [x] 43 tRPC routes verified intact (up from 37 — 6 new device policy routes)

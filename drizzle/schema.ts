@@ -143,3 +143,30 @@ export const skynetAlertHistory = mysqlTable("skynet_alert_history", {
 });
 
 export type SkynetAlertHistory = typeof skynetAlertHistory.$inferSelect;
+
+/**
+ * Device policies — per-device blocking rules using Skynet-IOT ipset.
+ * Each row represents a device that has been added to the IOT block list.
+ */
+export const devicePolicies = mysqlTable("device_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Device LAN IP address (e.g., "192.168.1.100") */
+  deviceIp: varchar("deviceIp", { length: 45 }).notNull(),
+  /** Device hostname from DHCP leases (optional) */
+  deviceName: varchar("deviceName", { length: 255 }),
+  /** MAC address of the device (optional) */
+  macAddress: varchar("macAddress", { length: 17 }),
+  /** Policy type: block_outbound (IOT ban), block_all (full ban) */
+  policyType: mysqlEnum("policyType", ["block_outbound", "block_all"]).notNull().default("block_outbound"),
+  /** Whether this policy is currently active on the router */
+  enabled: int("enabled").notNull().default(1),
+  /** Human-readable reason for the block */
+  reason: text("reason"),
+  /** Who created this policy */
+  createdBy: varchar("createdBy", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DevicePolicy = typeof devicePolicies.$inferSelect;
+export type InsertDevicePolicy = typeof devicePolicies.$inferInsert;

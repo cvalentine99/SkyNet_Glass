@@ -6,10 +6,13 @@ import {
   skynetStatsHistory,
   skynetAlertConfig,
   skynetAlertHistory,
+  devicePolicies,
   type SkynetConfig,
   type SkynetStatsHistory,
   type SkynetAlertConfig,
   type SkynetAlertHistory,
+  type DevicePolicy,
+  type InsertDevicePolicy,
 } from "../drizzle/schema";
 import type { SkynetStats } from "./skynet-parser";
 
@@ -282,4 +285,73 @@ export async function getLastAlertOfType(alertType: string): Promise<SkynetAlert
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+// ─── Device Policies CRUD ─────────────────────────────────
+
+export async function getDevicePolicies(): Promise<DevicePolicy[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select()
+    .from(devicePolicies)
+    .orderBy(desc(devicePolicies.createdAt));
+
+  return rows;
+}
+
+export async function getDevicePolicyByIp(ip: string): Promise<DevicePolicy | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select()
+    .from(devicePolicies)
+    .where(eq(devicePolicies.deviceIp, ip))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+export async function createDevicePolicy(policy: {
+  deviceIp: string;
+  deviceName?: string | null;
+  macAddress?: string | null;
+  policyType: "block_outbound" | "block_all";
+  reason?: string | null;
+  createdBy?: string | null;
+}): Promise<DevicePolicy> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(devicePolicies).values({
+    deviceIp: policy.deviceIp,
+    deviceName: policy.deviceName ?? null,
+    macAddress: policy.macAddress ?? null,
+    policyType: policy.policyType,
+    enabled: 1,
+    reason: policy.reason ?? null,
+    createdBy: policy.createdBy ?? null,
+  });
+
+  const inserted = await getDevicePolicyByIp(policy.deviceIp);
+  return inserted!;
+}
+
+export async function updateDevicePolicyEnabled(id: number, enabled: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(devicePolicies)
+    .set({ enabled: enabled ? 1 : 0 })
+    .where(eq(devicePolicies.id, id));
+}
+
+export async function deleteDevicePolicy(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.delete(devicePolicies).where(eq(devicePolicies.id, id));
 }

@@ -502,6 +502,12 @@ export default function DnsSinkhole() {
                               Filter by Domain
                             </button>
                             <a
+                              href={`/devices?ip=${encodeURIComponent(entry.clientIp)}&name=${encodeURIComponent(entry.deviceName)}`}
+                              className="px-2.5 py-1 rounded text-[10px] font-medium bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                            >
+                              Block Device
+                            </a>
+                            <a
                               href={`https://www.virustotal.com/gui/domain/${entry.domain}`}
                               target="_blank"
                               rel="noopener noreferrer"
