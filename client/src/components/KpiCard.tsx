@@ -1,16 +1,16 @@
 /**
  * KpiCard — Animated KPI display with glass bezel
  * Design: Glass Cockpit instrument gauge aesthetic
- * Features: Animated counter, severity color, sparkline-ready
+ * Features: Smooth animated counter that transitions on value changes,
+ *           severity color, text mode for non-numeric values
  */
 import { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
-interface KpiCardProps {
+interface KpiCardBaseProps {
   title: string;
-  value: number;
   icon: LucideIcon;
   trend?: { value: number; positive: boolean };
   severity?: "critical" | "high" | "medium" | "low" | "neutral";
@@ -18,21 +18,51 @@ interface KpiCardProps {
   delay?: number;
 }
 
-function useAnimatedCounter(target: number, duration: number = 1500) {
+interface KpiCardNumberProps extends KpiCardBaseProps {
+  value: number;
+  isText?: false;
+}
+
+interface KpiCardTextProps extends KpiCardBaseProps {
+  value: string;
+  isText: true;
+}
+
+type KpiCardProps = KpiCardNumberProps | KpiCardTextProps;
+
+/**
+ * Animated counter that smoothly transitions between values.
+ * Uses requestAnimationFrame with cubic ease-out for buttery animation.
+ * Animates both on initial mount AND when the target value changes.
+ */
+function useAnimatedCounter(target: number, duration: number = 1200) {
   const [count, setCount] = useState(0);
-  const startTime = useRef<number | null>(null);
+  const prevTarget = useRef(0);
   const rafId = useRef<number>(0);
 
   useEffect(() => {
+    const from = prevTarget.current;
+    const to = target;
+    prevTarget.current = target;
+
+    // Skip animation if going from 0 to 0
+    if (from === 0 && to === 0) return;
+
+    let startTime: number | null = null;
+
     const animate = (timestamp: number) => {
-      if (!startTime.current) startTime.current = timestamp;
-      const progress = Math.min((timestamp - startTime.current) / duration, 1);
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Cubic ease-out
       const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.floor(eased * target));
+      const current = Math.round(from + (to - from) * eased);
+      setCount(current);
       if (progress < 1) {
         rafId.current = requestAnimationFrame(animate);
       }
     };
+
     rafId.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId.current);
   }, [target, duration]);
@@ -62,16 +92,20 @@ const severityBg: Record<string, string> = {
   neutral: "bg-gold/10",
 };
 
-export function KpiCard({
-  title,
-  value,
-  icon: Icon,
-  trend,
-  severity = "neutral",
-  suffix = "",
-  delay = 0,
-}: KpiCardProps) {
-  const animatedValue = useAnimatedCounter(value, 1800);
+export function KpiCard(props: KpiCardProps) {
+  const {
+    title,
+    icon: Icon,
+    trend,
+    severity = "neutral",
+    suffix = "",
+    delay = 0,
+  } = props;
+
+  const isText = props.isText === true;
+  const numericValue = isText ? 0 : (props.value as number);
+  const textValue = isText ? (props.value as string) : "";
+  const animatedValue = useAnimatedCounter(numericValue, 1200);
 
   return (
     <motion.div
@@ -115,10 +149,27 @@ export function KpiCard({
         <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
           {title}
         </p>
-        <p className={cn("text-2xl font-bold tabular-nums", severityColors[severity])}>
-          {formatNumber(animatedValue)}
-          {suffix && <span className="text-sm font-normal ml-1 text-muted-foreground">{suffix}</span>}
-        </p>
+        <div className={cn("text-2xl font-bold tabular-nums", severityColors[severity])}>
+          {isText ? (
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={textValue}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.3 }}
+                className="text-lg inline-block"
+              >
+                {textValue}
+              </motion.span>
+            </AnimatePresence>
+          ) : (
+            <>
+              {formatNumber(animatedValue)}
+              {suffix && <span className="text-sm font-normal ml-1 text-muted-foreground">{suffix}</span>}
+            </>
+          )}
+        </div>
       </div>
     </motion.div>
   );

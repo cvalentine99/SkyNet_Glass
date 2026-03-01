@@ -1,17 +1,22 @@
 /**
  * useSkynetStats — Fetches Skynet stats from the backend via tRPC.
- * Falls back to sample data when no router is configured or data is unavailable.
- * Provides fully-typed data for every dashboard component.
- *
- * ACCURACY NOTES:
- * - No fabricated timeline data — Skynet stats.js has no hourly/daily breakdown
- * - Connection tables use actual SkynetConnection fields (ip, banReason, country, etc.)
- * - Port grouping uses honest service names, not invented attack labels
- * - Country distribution aggregates from ALL connection types
- * - AlienVault URLs use the already-parsed values from stats.js
+ * Returns empty/zero states when no router is configured.
+ * NO MOCK DATA — every value comes from the router or is zero.
  */
 import { trpc } from "@/lib/trpc";
-import * as sampleData from "@/lib/data";
+
+/** Shared empty KPI shape */
+const EMPTY_KPI = {
+  ipsBanned: 0,
+  rangesBanned: 0,
+  inboundBlocks: 0,
+  outboundBlocks: 0,
+  totalBlocks: 0,
+  monitoringSince: "",
+  logSize: "",
+  blockRate: 0,
+  topThreatCountry: "",
+};
 
 export function useSkynetStats() {
   const statsQuery = trpc.skynet.getStats.useQuery(undefined, {
@@ -55,7 +60,7 @@ export function useSkynetStats() {
           : 0,
         topThreatCountry: "",
       }
-    : sampleData.kpiData;
+    : EMPTY_KPI;
 
   // ---- Port Hits ----
   const inboundPortHits = isUsingLiveData
@@ -64,23 +69,21 @@ export function useSkynetStats() {
         service: getServiceName(p.port),
         hits: p.hits,
       }))
-    : sampleData.inboundPortHits;
+    : [];
 
   const sourcePortHits = isUsingLiveData
     ? stats!.sourcePortHits.map((p) => ({
         port: p.port,
         hits: p.hits,
       }))
-    : sampleData.sourcePortHits;
+    : [];
 
   // ---- Port Hit Distribution (for donut chart) ----
-  // Groups ports by well-known service name — factual, not invented attack labels
   const connectionTypes = isUsingLiveData
     ? derivePortDistribution(stats!.inboundPortHits)
-    : sampleData.connectionTypes;
+    : [];
 
   // ---- Country Distribution ----
-  // Aggregates from ALL connection types (inbound + outbound + HTTP + top blocks)
   const countryDistribution = isUsingLiveData
     ? deriveCountryDistribution(
         stats!.lastInboundConnections,
@@ -90,10 +93,9 @@ export function useSkynetStats() {
         stats!.topOutboundBlocks,
         stats!.topHttpBlocks
       )
-    : sampleData.countryDistribution;
+    : [];
 
   // ---- Connections Tables ----
-  // Uses actual SkynetConnection shape: { ip, banReason, alienVaultUrl, country, associatedDomains }
   const lastInboundConnections = isUsingLiveData
     ? stats!.lastInboundConnections.map(mapConnection)
     : [];
@@ -109,7 +111,7 @@ export function useSkynetStats() {
   // ---- Top Blocks ----
   const topInboundBlocks = isUsingLiveData
     ? stats!.topInboundBlocks.map(b => ({ ip: b.ip, hits: b.hits, country: b.country }))
-    : sampleData.blockedIPs.slice(0, 10).map(b => ({ ip: b.ip, hits: b.hits, country: b.country }));
+    : [];
 
   const topOutboundBlocks = isUsingLiveData
     ? stats!.topOutboundBlocks.map(b => ({ ip: b.ip, hits: b.hits, country: b.country }))
@@ -124,7 +126,6 @@ export function useSkynetStats() {
     : [];
 
   // ---- Blocked IPs (for threat table) ----
-  // Uses the already-parsed alienVaultUrl from stats.js (Fix #7)
   const blockedIPs = isUsingLiveData
     ? buildBlockedIPs(
         stats!.topInboundBlocks,
@@ -132,7 +133,7 @@ export function useSkynetStats() {
         stats!.lastOutboundConnections,
         stats!.lastHttpConnections
       )
-    : sampleData.blockedIPs;
+    : [];
 
   return {
     kpiData,
@@ -152,6 +153,7 @@ export function useSkynetStats() {
     // Meta
     isUsingLiveData,
     hasConfig,
+    hasData: hasLiveData,
     isLoading: statsQuery.isLoading || configQuery.isLoading,
     isRefetching: statsQuery.isRefetching,
     isFetchingStats: statsQuery.isFetching && hasConfig,
@@ -181,42 +183,28 @@ function getServiceName(port: number): string {
   return services[port] ?? `Port ${port}`;
 }
 
-/**
- * Map a parsed SkynetConnection to the ConnectionEntry shape
- * used by LiveConnectionsTable. Uses the ACTUAL fields from stats.js.
- */
 function mapConnection(c: any) {
   return {
     ip: c.ip || "",
     banReason: c.banReason || "*",
-    alienVaultUrl: c.alienVaultUrl || "",  // Use parsed URL directly (Fix #7)
+    alienVaultUrl: c.alienVaultUrl || "",
     country: c.country || "",
     associatedDomains: Array.isArray(c.associatedDomains) ? c.associatedDomains : [],
   };
 }
 
-/**
- * Derive port hit distribution from port hits.
- * Groups by well-known service name — factual labels only.
- */
 function derivePortDistribution(portHits: { port: number; hits: number }[]) {
   const groups: Record<string, number> = {};
-
   for (const p of portHits) {
     const name = getServiceName(p.port);
     groups[name] = (groups[name] || 0) + p.hits;
   }
-
   return Object.entries(groups)
     .filter(([_, v]) => v > 0)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 }
 
-/**
- * Derive country distribution from ALL connection sources.
- * Aggregates hits by country from connections + top blocks.
- */
 function deriveCountryDistribution(
   inboundConns: any[],
   outboundConns: any[],
@@ -227,7 +215,6 @@ function deriveCountryDistribution(
 ) {
   const countryMap: Record<string, { country: string; blocks: number }> = {};
 
-  // Helper to add country data
   const addCountry = (country: string, hits: number) => {
     if (!country || country === "**" || country === "*") return;
     if (!countryMap[country]) {
@@ -236,12 +223,9 @@ function deriveCountryDistribution(
     countryMap[country].blocks += hits;
   };
 
-  // From top blocks (these have hit counts)
   for (const b of [...topInbound, ...topOutbound, ...topHttp]) {
     addCountry(b.country, b.hits || 1);
   }
-
-  // From connection tables (each connection = 1 hit for country counting)
   for (const c of [...inboundConns, ...outboundConns, ...httpConns]) {
     addCountry(c.country, 1);
   }
@@ -257,18 +241,12 @@ function deriveCountryDistribution(
   }));
 }
 
-/**
- * Build the blockedIPs array for the ThreatTable.
- * Uses already-parsed alienVaultUrl from stats.js (Fix #7).
- * Enriches top blocks with connection data where available.
- */
 function buildBlockedIPs(
   topBlocks: any[],
   inboundConns: any[],
   outboundConns: any[],
   httpConns: any[]
 ) {
-  // Build a lookup from all connections for enrichment
   const connLookup: Record<string, any> = {};
   for (const c of [...inboundConns, ...outboundConns, ...httpConns]) {
     if (c.ip && !connLookup[c.ip]) {

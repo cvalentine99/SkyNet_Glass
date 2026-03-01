@@ -1,9 +1,12 @@
 /**
  * Sidebar — Glass Cockpit navigation panel
  * Design: Compact 64px icon mode, expandable to 240px
- * 5 items: Dashboard (top), Ports/Threats/Connections (scroll-to), Settings (page)
+ * Features:
+ *   - Scroll-spy: auto-highlights active section via IntersectionObserver
+ *   - Keyboard shortcuts: 1-5 to jump between sections
+ *   - 5 items: Dashboard (top), Ports/Threats/Connections (scroll-to), Settings (page)
  */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -15,12 +18,15 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from "lucide-react";
+import { toast } from "sonner";
 
 export type SidebarItem = {
   icon: typeof Shield;
   label: string;
   id: string;
+  shortcut?: string;
   /** If set, navigates to this route instead of scrolling */
   route?: string;
   /** If set, scrolls to this element ID on the dashboard */
@@ -28,48 +34,145 @@ export type SidebarItem = {
 };
 
 const navItems: SidebarItem[] = [
-  { icon: Shield, label: "Dashboard", id: "dashboard", route: "/" },
-  { icon: BarChart3, label: "Port Statistics", id: "ports", scrollTo: "section-ports" },
-  { icon: Globe, label: "Threat Map", id: "threats", scrollTo: "section-threats" },
-  { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections" },
-  { icon: Settings, label: "Settings", id: "settings", route: "/settings" },
+  { icon: Shield, label: "Dashboard", id: "dashboard", route: "/", shortcut: "1" },
+  { icon: BarChart3, label: "Port Statistics", id: "ports", scrollTo: "section-ports", shortcut: "2" },
+  { icon: Globe, label: "Threat Map", id: "threats", scrollTo: "section-threats", shortcut: "3" },
+  { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections", shortcut: "4" },
+  { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "5" },
 ];
+
+// Section IDs that the scroll-spy observes
+const SCROLL_SPY_SECTIONS = ["section-ports", "section-threats", "section-connections"];
 
 interface SidebarProps {
   activeSection?: string;
+  onExport?: () => void;
 }
 
-export function Sidebar({ activeSection = "dashboard" }: SidebarProps) {
+export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
   const [location, navigate] = useLocation();
+  const [scrollSpySection, setScrollSpySection] = useState<string | null>(null);
 
-  const handleClick = (item: SidebarItem) => {
-    if (item.route) {
-      navigate(item.route);
-    } else if (item.scrollTo) {
-      // If we're not on the dashboard, navigate there first
-      if (location !== "/") {
-        navigate("/");
-        // Wait for the page to render, then scroll
-        setTimeout(() => {
-          const el = document.getElementById(item.scrollTo!);
-          el?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      } else {
-        const el = document.getElementById(item.scrollTo);
-        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+  // Scroll-spy via IntersectionObserver
+  useEffect(() => {
+    if (location !== "/") return;
+
+    const observers: IntersectionObserver[] = [];
+    const visibleSections = new Map<string, number>();
+
+    for (const sectionId of SCROLL_SPY_SECTIONS) {
+      const el = document.getElementById(sectionId);
+      if (!el) continue;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              visibleSections.set(sectionId, entry.intersectionRatio);
+            } else {
+              visibleSections.delete(sectionId);
+            }
+          }
+
+          // Find the most visible section
+          if (visibleSections.size === 0) {
+            setScrollSpySection(null);
+          } else {
+            let best = "";
+            let bestRatio = 0;
+            Array.from(visibleSections.entries()).forEach(([id, ratio]) => {
+              if (ratio > bestRatio) {
+                best = id;
+                bestRatio = ratio;
+              }
+            });
+            setScrollSpySection(best);
+          }
+        },
+        {
+          rootMargin: "-10% 0px -40% 0px",
+          threshold: [0, 0.25, 0.5, 0.75, 1],
+        }
+      );
+
+      observer.observe(el);
+      observers.push(observer);
     }
-  };
 
-  // Determine active item based on route or section
+    return () => {
+      for (const obs of observers) obs.disconnect();
+    };
+  }, [location]);
+
+  // Map scroll-spy section IDs to sidebar item IDs
+  const scrollSpyItemId = scrollSpySection
+    ? navItems.find((n) => n.scrollTo === scrollSpySection)?.id ?? null
+    : null;
+
+  // Effective active section: scroll-spy overrides prop when on dashboard
+  const activeSection =
+    location === "/" && scrollSpyItemId
+      ? scrollSpyItemId
+      : location === "/settings"
+        ? "settings"
+        : propActiveSection ?? "dashboard";
+
+  const handleClick = useCallback(
+    (item: SidebarItem) => {
+      if (item.route) {
+        navigate(item.route);
+        if (item.route === "/") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      } else if (item.scrollTo) {
+        if (location !== "/") {
+          navigate("/");
+          setTimeout(() => {
+            const el = document.getElementById(item.scrollTo!);
+            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 150);
+        } else {
+          const el = document.getElementById(item.scrollTo);
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+    },
+    [location, navigate]
+  );
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
+      // Don't trigger with modifier keys
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const item = navItems.find((n) => n.shortcut === e.key);
+      if (item) {
+        e.preventDefault();
+        handleClick(item);
+      }
+
+      // 'E' for export
+      if (e.key === "e" && onExport) {
+        e.preventDefault();
+        onExport();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleClick, onExport]);
+
   const getIsActive = (item: SidebarItem) => {
-    if (item.route === "/settings" && location === "/settings") return true;
-    if (item.route === "/" && location === "/" && activeSection === "dashboard") return true;
-    if (item.scrollTo && activeSection === item.id) return true;
-    // Default: dashboard is active on home page
-    if (item.id === "dashboard" && location === "/" && !activeSection) return true;
-    return false;
+    return item.id === activeSection;
   };
 
   return (
@@ -146,18 +249,78 @@ export function Sidebar({ activeSection = "dashboard" }: SidebarProps) {
                   </motion.span>
                 )}
               </AnimatePresence>
-              {/* Tooltip for collapsed mode */}
+              {/* Tooltip for collapsed mode — includes keyboard shortcut */}
               {!expanded && (
                 <div className="absolute left-full ml-2 px-2 py-1 rounded-md text-xs font-medium
                   bg-popover text-popover-foreground border border-border
                   opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity
-                  whitespace-nowrap z-50 shadow-lg">
+                  whitespace-nowrap z-50 shadow-lg flex items-center gap-2">
                   {item.label}
+                  {item.shortcut && (
+                    <kbd className="px-1 py-0.5 rounded text-[10px] bg-muted text-muted-foreground font-mono">
+                      {item.shortcut}
+                    </kbd>
+                  )}
                 </div>
+              )}
+              {/* Shortcut badge in expanded mode */}
+              {expanded && item.shortcut && (
+                <motion.kbd
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-muted/50 text-muted-foreground font-mono"
+                >
+                  {item.shortcut}
+                </motion.kbd>
               )}
             </button>
           );
         })}
+
+        {/* Export button */}
+        {onExport && (
+          <button
+            onClick={onExport}
+            className={cn(
+              "flex items-center gap-3 rounded-lg transition-all duration-200 mt-2",
+              "relative group",
+              expanded ? "px-3 py-2.5" : "px-0 py-2.5 justify-center",
+              "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+            )}
+          >
+            <Download className="w-[18px] h-[18px] shrink-0" />
+            <AnimatePresence>
+              {expanded && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  className="text-[13px] font-medium whitespace-nowrap overflow-hidden"
+                >
+                  Export Data
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {!expanded && (
+              <div className="absolute left-full ml-2 px-2 py-1 rounded-md text-xs font-medium
+                bg-popover text-popover-foreground border border-border
+                opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity
+                whitespace-nowrap z-50 shadow-lg flex items-center gap-2">
+                Export Data
+                <kbd className="px-1 py-0.5 rounded text-[10px] bg-muted text-muted-foreground font-mono">E</kbd>
+              </div>
+            )}
+            {expanded && (
+              <motion.kbd
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="ml-auto px-1.5 py-0.5 rounded text-[10px] bg-muted/50 text-muted-foreground font-mono"
+              >
+                E
+              </motion.kbd>
+            )}
+          </button>
+        )}
       </nav>
 
       {/* Expand/Collapse Toggle */}

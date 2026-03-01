@@ -3,7 +3,7 @@
  * Design: Glass Cockpit — gradient text title, status indicators
  */
 import { motion } from "framer-motion";
-import { RefreshCw, Clock, HardDrive, Wifi, WifiOff, Loader2, Database } from "lucide-react";
+import { RefreshCw, Clock, HardDrive, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -83,8 +83,8 @@ export function DashboardHeader({
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-[11px]">
-              <Database className="w-3 h-3 text-muted-foreground" />
-              <span className="text-muted-foreground font-medium">Sample Data</span>
+              <WifiOff className="w-3 h-3 text-muted-foreground" />
+              <span className="text-muted-foreground font-medium">Not Connected</span>
             </div>
           )}
         </div>

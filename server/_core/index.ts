@@ -57,8 +57,16 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Auto-start Skynet polling if a router config exists
+    try {
+      const { startPolling } = await import("../skynet-fetcher");
+      await startPolling();
+    } catch (err) {
+      console.log("[Skynet] Auto-start polling skipped (no config or error)");
+    }
   });
 }
 

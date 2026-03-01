@@ -82,3 +82,29 @@
 - [x] #6 Changed default stats path to /user/skynet/stats.js everywhere (Settings, routers, schema)
 - [x] #7 Uses already-parsed alienVaultUrl from stats.js, falls back to OTX URL only when missing
 - [x] Test and checkpoint (22 tests passing, 0 TS errors)
+
+## Phase 9: Premium Overhaul — No Mock Data, Real Threat Map, All Premium Features
+
+### Kill Mock Data
+- [x] Delete lib/data.ts entirely
+- [x] Rewrite useSkynetStats to return empty/zero states (no sample data fallback)
+- [x] Add proper empty states to every component ("Connect your router")
+- [x] Remove "Sample Data Mode" banner — replaced with "No Router Connected" state
+
+### Real Interactive Threat Map (Google Maps)
+- [x] Build ThreatMapPanel with Google Maps dark-styled map
+- [x] Plot threat IPs using country centroids with severity-colored markers
+- [x] Add animated pulse effects on markers
+- [x] Click markers for IP details popup
+- [x] Heat density overlay for high-concentration areas
+
+### Premium Features
+- [x] Scroll-spy sidebar — highlight active section based on viewport (IntersectionObserver)
+- [x] JSON/CSV export button in sidebar + format picker toast
+- [x] Keyboard shortcuts (1-5 for sidebar nav, E for export)
+- [x] Auto-start polling on server boot when config exists
+- [x] Animated number transitions on KPI value changes (smooth from→to counter)
+
+### Test & Deliver
+- [x] Update all tests (22 passing, 0 TS errors)
+- [x] Checkpoint and deliver
