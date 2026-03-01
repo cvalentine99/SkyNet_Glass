@@ -507,15 +507,23 @@ export function LiveConnectionsTable({
       </div>
 
       <div className="overflow-x-auto scrollbar-hide rounded-lg border border-border/50">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs table-fixed">
+          <colgroup>
+            <col className="w-8" />
+            <col className="w-[160px]" />
+            <col className="w-[120px]" />
+            <col style={{ width: '35%' }} />
+            <col style={{ width: '25%' }} />
+            <col className="w-[60px]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border/30" style={{ background: "oklch(0.1 0.005 260 / 60%)" }}>
-              <th className="w-6 px-2 py-2"></th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">IP Address</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Country</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Ban Reason</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Domains</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Intel</th>
+              <th className="px-2 py-2.5"></th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">IP Address</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Country</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Ban Reason</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Domains</th>
+              <th className="text-center px-3 py-2.5 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Intel</th>
             </tr>
           </thead>
           <tbody>
@@ -561,7 +569,7 @@ export function LiveConnectionsTable({
                         {conn.country || "—"}
                       </td>
                       <td className="px-3 py-2">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground inline-block max-w-full truncate" title={conn.banReason || "*"}>
                           {conn.banReason || "*"}
                         </span>
                       </td>
@@ -570,12 +578,17 @@ export function LiveConnectionsTable({
                           ? conn.associatedDomains.slice(0, 2).join(", ") + (conn.associatedDomains.length > 2 ? ` +${conn.associatedDomains.length - 2}` : "")
                           : "—"}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 text-center">
                         {conn.alienVaultUrl ? (
-                          <span className="text-gold inline-flex items-center gap-1">
+                          <a
+                            href={conn.alienVaultUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-gold inline-flex items-center gap-1 hover:text-gold/80 transition-colors"
+                          >
                             <ExternalLink className="w-3 h-3" />
-                            <span className="text-[10px]">OTX</span>
-                          </span>
+                          </a>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

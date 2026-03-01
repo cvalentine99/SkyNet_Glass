@@ -1,0 +1,35 @@
+FINAL DIAGNOSIS:
+
+The dashboard on the Manus dev server looks CORRECT:
+- KPI cards are visible in a row of 8 (IPS BANNED, RANGES BANNED, INBOUND BLOCKS, etc.)
+- Blocked Connections chart is visible with 0 values
+- Port Hit Distribution card visible
+- Block Trends visible
+- Layout is clean and properly aligned
+
+The user's complaint about "columns out of whack" and "missing data" is happening on THEIR local server
+because the DATABASE_URL in their .env has a placeholder password "YOUR_DB_PASSWORD" instead of the real one.
+
+When the DB connection fails:
+1. getConfig returns error/null
+2. getStats returns error/null  
+3. The dashboard shows "No router configuration found" error
+4. All data is missing because the DB query fails BEFORE any SSH happens
+
+The logs page shows "Failed to fetch logs - No router configuration found" for the same reason.
+
+ROOT CAUSE: The user's .env file has DATABASE_URL=mysql://skynet:YOUR_DB_PASSWORD@127.0.0.1:3306/skynet_glass
+The password "YOUR_DB_PASSWORD" is a literal placeholder. The install script should have set this automatically.
+
+FIX: The install.sh script I created DOES handle this - it generates the password and writes it to .env.
+The user needs to run the install script. But they're frustrated because they already tried and it failed
+on the migration step (duplicate sshPort column). That's now fixed with the consolidated migration.
+
+The user needs to:
+1. git pull (to get the fixed install.sh and consolidated migration)
+2. sudo bash install.sh (which will create a new DB password and write it to .env)
+
+OR manually fix:
+1. Reset the MySQL password: sudo mysql -e "ALTER USER 'skynet'@'localhost' IDENTIFIED BY 'SkynetGlass2026'; FLUSH PRIVILEGES;"
+2. Edit .env: DATABASE_URL=mysql://skynet:SkynetGlass2026@127.0.0.1:3306/skynet_glass
+3. Rebuild and restart

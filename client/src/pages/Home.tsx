@@ -232,8 +232,8 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                {/* KPI Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
+                {/* KPI Row — 2 rows of 4 for readability */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <KpiCard title="IPs Banned" value={kpiData.ipsBanned} icon={Shield} severity="critical" delay={0.05} />
                   <KpiCard title="Ranges Banned" value={kpiData.rangesBanned} icon={Layers} severity="high" delay={0.1} />
                   <KpiCard title="Inbound Blocks" value={kpiData.inboundBlocks} icon={ArrowDownToLine} severity="medium" delay={0.15} />

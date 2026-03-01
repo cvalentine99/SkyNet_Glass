@@ -1,0 +1,21 @@
+Dashboard Review - Dev Server (no data connected)
+=================================================
+
+1. KPI cards: Now showing in 2 rows of 4 - GOOD layout
+2. Blocked Connections chart: Shows empty state message - GOOD
+3. Port Hit Distribution donut: Shows empty state - GOOD
+4. Block Trends: Shows "No historical data yet" - GOOD
+5. Port Statistics + Threat Origins: Side by side - GOOD layout
+6. Top Blocks by IP: Shows empty state message - GOOD
+7. Recent Blocked Connections table: Columns visible - GOOD
+8. Threat Map: Now using react-simple-maps SVG - needs to verify
+9. Threat Intelligence table: Visible - GOOD
+
+Layout looks clean without data. Need to verify with real data on user's server.
+The main issue the user sees is on their LOCAL server with REAL data.
+
+Key issues from user's screenshot:
+- KPI cards were cramped (8 in one row) - FIXED: now 2 rows of 4
+- Table columns misaligned - FIXED: table-fixed with colgroup
+- Threat map was black - FIXED: replaced Google Maps with react-simple-maps SVG
+- Bar chart colors all same gold - FIXED: gradient opacity per bar

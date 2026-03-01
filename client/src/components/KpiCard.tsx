@@ -113,7 +113,7 @@ export function KpiCard(props: KpiCardProps) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, delay, ease: [0.4, 0, 0.2, 1] }}
       className={cn(
-        "glass-card p-5 relative overflow-hidden group",
+        "glass-card p-4 sm:p-5 relative overflow-hidden group",
         severity === "critical" && "pulse-critical"
       )}
     >
@@ -149,7 +149,7 @@ export function KpiCard(props: KpiCardProps) {
         <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
           {title}
         </p>
-        <div className={cn("text-2xl font-bold tabular-nums", severityColors[severity])}>
+        <div className={cn("text-xl sm:text-2xl font-bold tabular-nums", severityColors[severity])}>
           {isText ? (
             <AnimatePresence mode="wait">
               <motion.span

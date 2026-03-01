@@ -58,7 +58,7 @@ export function useSkynetStats() {
                 100 * 10
             ) / 10
           : 0,
-        topThreatCountry: "",
+        topThreatCountry: "", // populated below after countryDistribution is computed
       }
     : EMPTY_KPI;
 
@@ -134,6 +134,11 @@ export function useSkynetStats() {
         stats!.lastHttpConnections
       )
     : [];
+
+  // Populate topThreatCountry from country distribution
+  if (isUsingLiveData && countryDistribution.length > 0) {
+    kpiData.topThreatCountry = countryDistribution[0].country;
+  }
 
   return {
     kpiData,

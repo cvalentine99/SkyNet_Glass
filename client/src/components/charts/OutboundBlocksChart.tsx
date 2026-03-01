@@ -144,14 +144,18 @@ export function OutboundBlocksChart({
               width={140}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
-            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={20}>
-              {currentTab.data.map((_, index) => (
-                <Cell
-                  key={index}
-                  fill={barColor}
-                  fillOpacity={1 - index * 0.07}
-                />
-              ))}
+            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={22}>
+              {currentTab.data.map((_, index) => {
+                // Gradient from bright to dim for visual ranking
+                const opacity = 0.95 - index * 0.065;
+                return (
+                  <Cell
+                    key={index}
+                    fill={barColor}
+                    fillOpacity={Math.max(opacity, 0.3)}
+                  />
+                );
+              })}
             </Bar>
           </BarChart>
         </ResponsiveContainer>

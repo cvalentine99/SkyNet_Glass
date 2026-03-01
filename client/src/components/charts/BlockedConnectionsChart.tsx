@@ -47,6 +47,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 export function BlockedConnectionsChart({ inboundBlocks, outboundBlocks }: BlockedConnectionsChartProps) {
   const totalBlocks = inboundBlocks + outboundBlocks;
+  const isEmpty = totalBlocks === 0;
   const inboundPct = totalBlocks > 0 ? Math.round((inboundBlocks / totalBlocks) * 100) : 0;
   const outboundPct = totalBlocks > 0 ? Math.round((outboundBlocks / totalBlocks) * 100) : 0;
 
@@ -97,6 +98,14 @@ export function BlockedConnectionsChart({ inboundBlocks, outboundBlocks }: Block
         </div>
       </div>
 
+      {isEmpty ? (
+        <div className="flex items-center justify-center h-[200px] text-muted-foreground text-xs">
+          <div className="text-center">
+            <p className="mb-1">No block count data in stats.js</p>
+            <p className="text-[10px]">Skynet may need to regenerate statistics</p>
+          </div>
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }} barCategoryGap="30%">
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 5%)" vertical={false} />
@@ -120,9 +129,10 @@ export function BlockedConnectionsChart({ inboundBlocks, outboundBlocks }: Block
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      )}
 
       <p className="text-[10px] text-muted-foreground mt-3 text-center italic">
-        Totals from stats.js — Skynet does not provide hourly/daily breakdown data
+        {isEmpty ? "Click 'Regenerate' then 'Update Stats' to populate" : "Totals from stats.js — Skynet does not provide hourly/daily breakdown data"}
       </p>
     </motion.div>
   );

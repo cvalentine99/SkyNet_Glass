@@ -623,3 +623,19 @@
 - [x] Build install.sh that handles ALL deployment automatically: system packages, Node.js, pnpm, MySQL user/db/password, .env generation, build, migrations, systemd service
 - [x] Push to GitHub
 - [x] Deliver one-liner install command to user
+
+## Phase 28: Fix Logs Page + Dashboard Layout
+- [ ] Fix /logs page showing nothing — no log data displayed
+- [ ] Fix Home dashboard columns out of whack / layout broken
+- [ ] Fix missing data on Home dashboard
+
+## Phase 29: Dashboard Layout Overhaul
+- [ ] Fix KPI cards — too cramped in one row, text too small, needs 2 rows of 4 or better spacing
+- [ ] Fix Blocked Connections chart — shows 0 despite having ban data, bar chart nearly empty
+- [ ] Fix Block Trends — empty/no data showing
+- [ ] Fix Port Statistics & Threat Origins — squished side by side, hard to read labels
+- [ ] Fix Top Blocks by IP — all same gold color, needs color differentiation
+- [ ] Fix Recent Blocked Connections table — columns misaligned, text cut off
+- [ ] Fix Global Threat Map — completely black, no data plotted
+- [ ] Fix Threat Intelligence table — cramped layout
+- [ ] Optimize entire layout for ultrawide monitors

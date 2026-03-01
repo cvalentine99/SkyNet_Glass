@@ -1,0 +1,47 @@
+SCREENSHOT ANALYSIS - User's actual dashboard on their server:
+
+The data IS flowing. Key observations:
+
+1. KPI ROW: Shows 39,326 IPs Banned, 2,695 Ranges Banned, 0 Inbound Blocks, 0 Outbound Blocks, 
+   0 Total Blocks, 0% Block Rate, Top Threat "—", 42,021 Active Rules
+   ISSUE: Cards are too small/cramped in a single row of 8. On their screen they're tiny.
+   Also: Inbound/Outbound/Total Blocks all show 0 — this is a DATA issue. The stats.js parser
+   is not extracting these values correctly.
+
+2. BLOCKED CONNECTIONS CHART: Shows 0 total blocks, 0 inbound, 0 outbound
+   ISSUE: Same data issue — the parser isn't getting block counts from stats.js
+
+3. PORT HIT DISTRIBUTION (donut): Shows data! Has HTTP/HTTPS, SSH, etc. with colors.
+   This is working correctly.
+
+4. BLOCK TRENDS: Empty — "No historical data yet"
+   ISSUE: This depends on historical snapshots being recorded. If blocks are 0, nothing to record.
+
+5. PORT STATISTICS: Shows data with horizontal bars — HTTPS (Port 443), SSH, etc.
+   Working but labels are tiny/hard to read. The bars have color coding (green, orange, etc.)
+
+6. THREAT ORIGINS: Shows data — France, United Kingdom, Brazil, etc. with colored bars.
+   Working but the chart is squished next to Port Statistics.
+
+7. TOP BLOCKS BY IP: Shows data with IP addresses and horizontal bars.
+   All bars are gold/yellow — needs color differentiation. Tab buttons (Inbound/Outbound/Devices/HTTP(S)) visible.
+
+8. RECENT BLOCKED CONNECTIONS: Shows 10 rows with real data.
+   ISSUE: Column headers visible (IP ADDRESS, COUNTRY, BAN REASON, DOMAINS, INTEL)
+   But the data columns are misaligned — ban reason text is cut off, country shows flag emoji + code.
+   The expand arrows (>) are visible. Layout is cramped.
+
+9. GLOBAL THREAT MAP: Completely black/empty. Shows "17 Countries" subtitle but no map visible.
+   ISSUE: Google Maps not rendering or no data being passed to markers.
+
+10. THREAT INTELLIGENCE: Shows 3 rows of data (IPs with severity badges, ban reasons, hits, country).
+    Has MODERATE/HIGH badges. Working but cramped.
+
+PRIORITY FIXES:
+A. DATA: Why are inbound/outbound/total blocks showing 0 when there are 39K banned IPs?
+   → Need to check stats.js parser for these specific fields
+B. LAYOUT: KPI cards need to be bigger (2 rows of 4 instead of 1 row of 8)
+C. LAYOUT: Charts need more breathing room
+D. THREAT MAP: Fix the Google Maps rendering
+E. TABLE: Fix Recent Blocked Connections column alignment
+F. COLORS: Top Blocks needs color variety
