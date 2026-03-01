@@ -3,16 +3,6 @@
  * Design: Glass Cockpit — multi-panel dashboard with sidebar navigation
  * Layout: Compact sidebar + responsive grid main content
  * Ultrawide optimized: 3-col on >1600px, 2-col on desktop, 1-col on mobile
- *
- * Sections mirror the original Skynet router dashboard:
- * 1. Key Stats (KPI row)
- * 2. Top 10 Targeted Ports (Inbound) — PortHitsChart
- * 3. Top 10 Source Ports (Inbound) — PortHitsChart (source tab)
- * 4. Last 10 Unique Connections Blocked (In/Out/HTTP) — LiveConnectionsTable
- * 5. Top 10 Blocks (Inbound/Outbound) — OutboundBlocksChart
- * 6. Top 10 Blocked Devices (Outbound) — OutboundBlocksChart (devices tab)
- * 7. Top 10 HTTP(s) Blocks (Outbound) — OutboundBlocksChart (http tab)
- * Plus: Blocked Connections chart, Attack Types, Country Distribution, Threat Map, Threat Intel table
  */
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
@@ -27,7 +17,7 @@ import { OutboundBlocksChart } from "@/components/charts/OutboundBlocksChart";
 import { ThreatMapPanel } from "@/components/ThreatMapPanel";
 import { ThreatTable } from "@/components/ThreatTable";
 import { LiveConnectionsTable } from "@/components/LiveConnectionsTable";
-import { kpiData } from "@/lib/data";
+import { useSkynetStats } from "@/hooks/useSkynetStats";
 import { toast } from "sonner";
 import {
   Shield,
@@ -45,6 +35,7 @@ const HERO_BG =
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("dashboard");
+  const skynet = useSkynetStats();
 
   const handleSectionChange = (id: string) => {
     setActiveSection(id);
@@ -54,6 +45,8 @@ export default function Home() {
       });
     }
   };
+
+  const { kpiData } = skynet;
 
   return (
     <div className="min-h-screen bg-background grid-pattern relative">
@@ -76,7 +69,33 @@ export default function Home() {
       <main className="ml-[64px] relative z-10 min-h-screen">
         <div className="max-w-[1920px] mx-auto px-6 py-6">
           {/* Header */}
-          <DashboardHeader />
+          <DashboardHeader
+            monitoringSince={kpiData.monitoringSince}
+            logSize={kpiData.logSize}
+            isUsingLiveData={skynet.isUsingLiveData}
+            hasConfig={skynet.hasConfig}
+          />
+
+          {/* Live data banner */}
+          {!skynet.hasConfig && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-lg glass-card border-gold/20 text-xs">
+              <span className="text-gold font-medium">Sample Data Mode</span>
+              <span className="text-muted-foreground">
+                Connect to your router in{" "}
+                <a href="/settings" className="text-gold underline underline-offset-2 hover:text-gold/80">
+                  Settings
+                </a>{" "}
+                to see live firewall data.
+              </span>
+            </div>
+          )}
+
+          {skynet.error && skynet.hasConfig && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-lg glass-card border-severity-critical/30 text-xs">
+              <span className="text-severity-critical font-medium">Connection Error</span>
+              <span className="text-muted-foreground">{skynet.error}</span>
+            </div>
+          )}
 
           {/* KPI Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
@@ -127,14 +146,14 @@ export default function Home() {
             />
             <KpiCard
               title="Top Threat"
-              value={14523}
+              value={kpiData.ipsBanned > 0 ? kpiData.inboundBlocks : 14523}
               icon={Globe}
               severity="critical"
               delay={0.35}
             />
             <KpiCard
               title="Active Rules"
-              value={1336}
+              value={kpiData.ipsBanned + kpiData.rangesBanned}
               icon={Zap}
               severity="neutral"
               trend={{ value: 3, positive: true }}
@@ -180,7 +199,14 @@ export default function Home() {
           <GlassCard delay={0.7} className="mb-6">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Skynet Firewall Statistics Dashboard</span>
-              <span className="font-mono tabular-nums">v1.0.0 — Obsidian Glass</span>
+              <div className="flex items-center gap-4">
+                {skynet.fetchedAt && (
+                  <span className="font-mono tabular-nums">
+                    Last updated: {new Date(skynet.fetchedAt).toLocaleTimeString()}
+                  </span>
+                )}
+                <span className="font-mono tabular-nums">v1.0.0 — Obsidian Glass</span>
+              </div>
             </div>
           </GlassCard>
         </div>

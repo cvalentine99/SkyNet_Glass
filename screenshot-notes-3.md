@@ -1,0 +1,1 @@
+Dashboard rendering correctly with Sample Data Mode banner visible. Header shows "Sample Data" indicator. Settings link in banner works. All KPI cards, charts visible. No TS errors. Need to check Settings page next.

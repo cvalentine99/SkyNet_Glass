@@ -4,6 +4,7 @@
  * Obsidian Glass tokens: --sidebar, gold accent on active items
  */
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -39,6 +40,7 @@ interface SidebarProps {
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
+  const [, navigate] = useLocation();
 
   return (
     <motion.aside
@@ -84,7 +86,13 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
           return (
             <button
               key={item.id}
-              onClick={() => onSectionChange(item.id)}
+              onClick={() => {
+                if (item.id === "settings") {
+                  navigate("/settings");
+                } else {
+                  onSectionChange(item.id);
+                }
+              }}
               className={cn(
                 "flex items-center gap-3 rounded-lg transition-all duration-200",
                 "relative group",
