@@ -45,3 +45,11 @@
 - [x] Update useSkynetStats to provide data for all chart types
 - [x] Test and checkpoint (14 tests passing)
 - [x] Update default router config: address=192.168.50.1, port=8443, protocol=https
+
+## Phase 5: Loading Animations
+- [x] Create ChartSkeleton component with glass shimmer effect
+- [x] Create KpiSkeleton component
+- [x] Create TableSkeleton component
+- [x] Add loading states to useSkynetStats hook (isRefetching, isFetchingStats)
+- [x] Integrate skeletons into Home.tsx for all chart/table sections
+- [x] Test and checkpoint (14 tests passing)

@@ -156,7 +156,9 @@ export function useSkynetStats() {
     // Meta
     isUsingLiveData,
     hasConfig,
-    isLoading: statsQuery.isLoading,
+    isLoading: statsQuery.isLoading || configQuery.isLoading,
+    isRefetching: statsQuery.isRefetching,
+    isFetchingStats: statsQuery.isFetching && hasConfig,
     error: statsQuery.data?.error ?? null,
     fetchedAt: statsQuery.data?.fetchedAt ?? null,
     pollingStatus: statusQuery.data ?? null,
