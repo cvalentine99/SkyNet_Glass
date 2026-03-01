@@ -509,4 +509,12 @@
 - [x] Rewrote DEPLOY-BAREMETAL.md — LAN-only is now the default, only 4 env vars shown
 - [x] Created ENV-REFERENCE.md with full variable reference table
 - [x] All 287 tests pass, production build clean
+- [x] Push to GitHub (cvalentine99/SkyNet_Glass)
+
+## Phase 24: Change Default Port from 3000 to 3006
+
+- [x] Update server/_core/index.ts default port (3000 → 3006)
+- [x] Update server/index.ts default port (3000 → 3006)
+- [x] Update DEPLOY-BAREMETAL.md (all 7 references)
+- [x] Update ENV-REFERENCE.md
 - [ ] Push to GitHub

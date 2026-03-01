@@ -7,7 +7,7 @@ Only **4 variables** are required for a bare metal LAN-only deployment. OAuth is
 | Variable | Description | Example |
 |---|---|---|
 | `NODE_ENV` | Node environment | `production` |
-| `PORT` | Server listen port | `3000` |
+| `PORT` | Server listen port | `3006` |
 | `DATABASE_URL` | MySQL/TiDB connection string | `mysql://skynet:pass@localhost:3306/skynet_glass` |
 | `JWT_SECRET` | Cookie signing secret (generate with `openssl rand -hex 32`) | `a1b2c3d4...` |
 
@@ -40,7 +40,7 @@ The following variables are part of the template but are **not needed** for bare
 
 ```bash
 NODE_ENV=production
-PORT=3000
+PORT=3006
 DATABASE_URL=mysql://skynet:YOUR_PASSWORD@localhost:3306/skynet_glass
 JWT_SECRET=YOUR_RANDOM_SECRET_HERE
 ```

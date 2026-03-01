@@ -11,7 +11,7 @@ This guide walks through deploying Skynet Glass on a fresh Ubuntu 24.04 LTS serv
 Skynet Glass is a single-process Node.js application. In production, the Express server handles both the tRPC API and serves the pre-built static frontend files. A reverse proxy (Nginx) sits in front to handle compression and static asset caching.
 
 ```
-LAN Browser → Nginx (80) → Node.js (3000) → MySQL (3306)
+LAN Browser → Nginx (80) → Node.js (3006) → MySQL (3306)
                                            → Your Router (SSH)
 ```
 
@@ -118,7 +118,7 @@ Skynet Glass needs only **4 environment variables**. Create a `.env` file in the
 ```bash
 cat > ~/skynet-glass/.env << 'EOF'
 NODE_ENV=production
-PORT=3000
+PORT=3006
 DATABASE_URL=mysql://skynet:CHANGE_ME_STRONG_PASSWORD@localhost:3306/skynet_glass
 JWT_SECRET=PASTE_YOUR_RANDOM_SECRET_HERE
 EOF
@@ -136,7 +136,7 @@ openssl rand -hex 32
 | Variable | Required | Description |
 |---|---|---|
 | `NODE_ENV` | Yes | Must be `production` |
-| `PORT` | Yes | Server listen port (default: 3000) |
+| `PORT` | Yes | Server listen port (default: 3006) |
 | `DATABASE_URL` | Yes | MySQL connection string |
 | `JWT_SECRET` | Yes | Secret for signing session cookies (min 32 chars) |
 
@@ -188,11 +188,11 @@ NODE_ENV=production node dist/index.js
 You should see:
 
 ```
-Server running on http://localhost:3000/
+Server running on http://localhost:3006/
 [Skynet] Auto-start polling skipped (no config or error)
 ```
 
-Open `http://YOUR_SERVER_IP:3000` in a browser. You should see the Skynet Glass dashboard. Press `Ctrl+C` to stop.
+Open `http://YOUR_SERVER_IP:3006` in a browser. You should see the Skynet Glass dashboard. Press `Ctrl+C` to stop.
 
 ---
 
@@ -282,7 +282,7 @@ server {
 
     # Static assets — long cache
     location /assets/ {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3006;
         proxy_set_header Host $host;
         expires 1y;
         add_header Cache-Control "public, immutable";
@@ -291,7 +291,7 @@ server {
 
     # API and SPA
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3006;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -332,7 +332,7 @@ sudo ufw allow 80/tcp
 sudo ufw enable
 ```
 
-The Node.js server on port 3000 is only accessible via `127.0.0.1` through Nginx. No external access to port 3000 is needed.
+The Node.js server on port 3006 is only accessible via `127.0.0.1` through Nginx. No external access to port 3006 is needed.
 
 ---
 
