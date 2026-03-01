@@ -612,3 +612,9 @@
 - [x] Added comma-in-device-name edge case test
 - [x] All 303 tests pass across 12 test files, 0 TypeScript errors
 - [ ] Push to GitHub
+
+## Phase 26: Fix DB Migration Issues on User's Server
+- [ ] Fix skynet_config query failure: migration 0007 (ADD sshPort) failed to apply due to MySQL access denied error — user's DB may be missing sshPort column
+- [ ] Provide manual SQL fix commands for user to run
+- [ ] Clean up Vite analytics warnings in index.html (VITE_ANALYTICS_ENDPOINT, VITE_ANALYTICS_WEBSITE_ID)
+- [ ] Fix testConnection: replace 'whoami' with BusyBox-compatible command (ASUS Merlin doesn't have whoami)

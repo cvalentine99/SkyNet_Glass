@@ -208,10 +208,10 @@ export async function testSSHConnection(config: SSHConfig): Promise<{
   };
 }> {
   try {
-    // Step 1: Test basic connectivity
-    const whoami = await sshExec(config, "whoami", { timeout: 10000 });
-    if (whoami.code !== 0) {
-      return { success: false, message: `SSH connected but whoami failed: ${whoami.stderr}` };
+    // Step 1: Test basic connectivity (use 'echo' — BusyBox on Merlin doesn't have whoami)
+    const probe = await sshExec(config, "echo OK", { timeout: 10000 });
+    if (probe.code !== 0 || !probe.stdout.includes("OK")) {
+      return { success: false, message: `SSH connected but command execution failed: ${probe.stderr}` };
     }
 
     // Step 2: Get router model and firmware
