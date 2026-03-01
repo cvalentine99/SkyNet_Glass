@@ -858,6 +858,235 @@ export const appRouter = router({
         return iotSetProto(input.proto);
       }),
 
+    // ─── Network Topology ──────────────────────────────────
+
+    /**
+     * Get aggregated topology data: DHCP devices + device policies + DNS activity summary.
+     * Returns a list of network nodes for the topology map.
+     */
+    getTopology: publicProcedure.query(async () => {
+      // Get DHCP leases for device discovery
+      let devices: Array<{ ip: string; hostname: string; mac: string; expires: string }> = [];
+      try {
+        const leaseResult = await fetchDhcpLeases();
+        if (leaseResult.raw) {
+          const leaseLines = leaseResult.raw.trim().split("\n").filter(Boolean);
+          for (const line of leaseLines) {
+            const parts = line.split(/\s+/);
+            if (parts.length >= 4) {
+              const [expires, mac, ip, hostname] = parts;
+              if (ip && mac) {
+                devices.push({
+                  ip,
+                  hostname: hostname && hostname !== "*" ? hostname : "Unknown",
+                  mac: mac.toUpperCase(),
+                  expires: expires || "",
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // No DHCP data available
+      }
+
+      // Get device policies
+      const policies = await getDevicePolicies();
+      const policyMap = new Map(policies.map(p => [p.deviceIp, p]));
+
+      // Get DNS sinkhole summary per device
+      let dnsHitsMap = new Map<string, number>();
+      try {
+        const dnsResult = await fetchDnsmasqLog(500);
+        if (dnsResult.raw) {
+          const { extractSinkholedRequests } = await import("./skynet-dns-parser");
+          const sinkholed = extractSinkholedRequests(dnsResult.raw);
+          for (const entry of sinkholed) {
+            dnsHitsMap.set(entry.clientIp, (dnsHitsMap.get(entry.clientIp) || 0) + 1);
+          }
+        }
+      } catch {
+        // No DNS data available
+      }
+
+      // Build topology nodes
+      const nodes = devices.map(d => {
+        const policy = policyMap.get(d.ip);
+        const dnsHits = dnsHitsMap.get(d.ip) || 0;
+        let status: "normal" | "iot_blocked" | "full_blocked" | "dns_active" = "normal";
+        if (policy?.enabled) {
+          status = policy.policyType === "block_outbound" ? "iot_blocked" : "full_blocked";
+        } else if (dnsHits > 0) {
+          status = "dns_active";
+        }
+        return {
+          ip: d.ip,
+          hostname: d.hostname,
+          mac: d.mac,
+          status,
+          policyType: policy?.policyType ?? null,
+          policyEnabled: policy?.enabled ? true : false,
+          policyReason: policy?.reason ?? null,
+          dnsHits,
+        };
+      });
+
+      // Also include devices from policies that aren't in DHCP leases
+      for (const policy of policies) {
+        if (!devices.find(d => d.ip === policy.deviceIp)) {
+          nodes.push({
+            ip: policy.deviceIp,
+            hostname: policy.deviceName || "Unknown",
+            mac: policy.macAddress || "Unknown",
+            status: policy.enabled
+              ? (policy.policyType === "block_outbound" ? "iot_blocked" as const : "full_blocked" as const)
+              : "normal" as const,
+            policyType: policy.policyType,
+            policyEnabled: policy.enabled ? true : false,
+            policyReason: policy.reason ?? null,
+            dnsHits: dnsHitsMap.get(policy.deviceIp) || 0,
+          });
+        }
+      }
+
+      return {
+        nodes,
+        totalDevices: nodes.length,
+        blockedDevices: nodes.filter(n => n.status === "iot_blocked" || n.status === "full_blocked").length,
+        dnsActiveDevices: nodes.filter(n => n.dnsHits > 0).length,
+      };
+    }),
+
+    // ─── Config Export / Import ──────────────────────────────
+
+    /** Export all configuration as a JSON backup */
+    exportConfig: publicProcedure.query(async () => {
+      const config = await getSkynetConfig();
+      const alertCfg = await getAlertConfig();
+      const policies = await getDevicePolicies();
+
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        routerConfig: config ? {
+          routerAddress: config.routerAddress,
+          routerPort: config.routerPort,
+          routerProtocol: config.routerProtocol,
+          statsPath: config.statsPath,
+          pollingInterval: config.pollingInterval,
+          pollingEnabled: config.pollingEnabled,
+          targetLat: config.targetLat,
+          targetLng: config.targetLng,
+        } : null,
+        alertConfig: alertCfg ? {
+          alertsEnabled: alertCfg.alertsEnabled,
+          blockSpikeThreshold: alertCfg.blockSpikeThreshold,
+          blockSpikeEnabled: alertCfg.blockSpikeEnabled,
+          newCountryEnabled: alertCfg.newCountryEnabled,
+          newPortEnabled: alertCfg.newPortEnabled,
+          countryMinBlocks: alertCfg.countryMinBlocks,
+          cooldownMinutes: alertCfg.cooldownMinutes,
+        } : null,
+        devicePolicies: policies.map(p => ({
+          deviceIp: p.deviceIp,
+          deviceName: p.deviceName,
+          macAddress: p.macAddress,
+          policyType: p.policyType,
+          enabled: p.enabled,
+          reason: p.reason,
+        })),
+      };
+    }),
+
+    /** Import configuration from a JSON backup */
+    importConfig: publicProcedure
+      .input(z.object({
+        routerConfig: z.object({
+          routerAddress: z.string(),
+          routerPort: z.number(),
+          routerProtocol: z.string(),
+          statsPath: z.string(),
+          pollingInterval: z.number(),
+          pollingEnabled: z.any(),
+          targetLat: z.number().nullable().optional(),
+          targetLng: z.number().nullable().optional(),
+        }).nullable().optional(),
+        alertConfig: z.object({
+          alertsEnabled: z.any(),
+          blockSpikeThreshold: z.number(),
+          blockSpikeEnabled: z.any(),
+          newCountryEnabled: z.any(),
+          newPortEnabled: z.any(),
+          countryMinBlocks: z.number(),
+          cooldownMinutes: z.number(),
+        }).nullable().optional(),
+        devicePolicies: z.array(z.object({
+          deviceIp: z.string(),
+          deviceName: z.string().nullable().optional(),
+          macAddress: z.string().nullable().optional(),
+          policyType: z.enum(["block_outbound", "block_all"]),
+          enabled: z.any(),
+          reason: z.string().nullable().optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const results = { routerConfig: false, alertConfig: false, devicePolicies: 0 };
+
+        // Import router config
+        if (input.routerConfig) {
+          try {
+            await upsertSkynetConfig({
+              routerAddress: input.routerConfig.routerAddress,
+              routerPort: input.routerConfig.routerPort,
+              routerProtocol: input.routerConfig.routerProtocol,
+              statsPath: input.routerConfig.statsPath,
+              pollingInterval: input.routerConfig.pollingInterval,
+              pollingEnabled: !!input.routerConfig.pollingEnabled,
+              targetLat: input.routerConfig.targetLat ?? undefined,
+              targetLng: input.routerConfig.targetLng ?? undefined,
+            });
+            results.routerConfig = true;
+          } catch { /* skip */ }
+        }
+
+        // Import alert config
+        if (input.alertConfig) {
+          try {
+            await upsertAlertConfig({
+              alertsEnabled: !!input.alertConfig.alertsEnabled,
+              blockSpikeThreshold: input.alertConfig.blockSpikeThreshold,
+              blockSpikeEnabled: !!input.alertConfig.blockSpikeEnabled,
+              newCountryEnabled: !!input.alertConfig.newCountryEnabled,
+              newPortEnabled: !!input.alertConfig.newPortEnabled,
+              countryMinBlocks: input.alertConfig.countryMinBlocks,
+              cooldownMinutes: input.alertConfig.cooldownMinutes,
+            });
+            results.alertConfig = true;
+          } catch { /* skip */ }
+        }
+
+        // Import device policies (skip duplicates)
+        if (input.devicePolicies) {
+          for (const p of input.devicePolicies) {
+            try {
+              const existing = await getDevicePolicyByIp(p.deviceIp);
+              if (!existing) {
+                await createDevicePolicy({
+                  deviceIp: p.deviceIp,
+                  deviceName: p.deviceName,
+                  macAddress: p.macAddress,
+                  policyType: p.policyType,
+                  reason: p.reason,
+                });
+                results.devicePolicies++;
+              }
+            } catch { /* skip individual failures */ }
+          }
+        }
+
+        return { success: true, results };
+      }),
+
     /** Test connection to the router */
     testConnection: publicProcedure
       .input(

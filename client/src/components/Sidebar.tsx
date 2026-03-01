@@ -15,6 +15,7 @@ import {
   BarChart3,
   Globe,
   Network,
+  Cpu,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -48,6 +49,7 @@ const navItems: SidebarItem[] = [
   { icon: Database, label: "Ipsets", id: "ipsets", route: "/ipsets", shortcut: "7" },
   { icon: Radar, label: "DNS Sinkhole", id: "dns", route: "/dns", shortcut: "8" },
   { icon: Monitor, label: "Device Policies", id: "devices", route: "/devices", shortcut: "9" },
+  { icon: Cpu, label: "Topology", id: "topology", route: "/topology" },
   { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "0" },
 ];
 
@@ -138,7 +140,9 @@ export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarP
                     ? "devices"
                     : location === "/threatmap"
                       ? "threats"
-                      : propActiveSection ?? "dashboard";
+                      : location === "/topology"
+                        ? "topology"
+                        : propActiveSection ?? "dashboard";
 
   const handleClick = useCallback(
     (item: SidebarItem) => {

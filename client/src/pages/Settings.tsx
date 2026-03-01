@@ -34,6 +34,11 @@ import {
   Globe,
   Target,
   History,
+  Download,
+  Upload,
+  FileJson,
+  FileCheck,
+  FileWarning,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -481,6 +486,9 @@ export default function SettingsPage() {
           {/* ─── Alert Configuration ─────────────────────── */}
           <AlertConfigSection />
 
+          {/* ─── Config Backup & Restore ─────────────────── */}
+          <ConfigBackupSection />
+
           {/* Info */}
           <GlassCard className="mt-8 p-5">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
@@ -900,6 +908,249 @@ function AlertConfigSection() {
               ))}
             </div>
           )}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+// ─── Config Backup & Restore Section ────────────────────────
+
+function ConfigBackupSection() {
+  const [importData, setImportData] = useState<any>(null);
+  const [importFileName, setImportFileName] = useState("");
+  const [importError, setImportError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+
+  const exportQuery = trpc.skynet.exportConfig.useQuery(undefined, {
+    enabled: false, // manual fetch only
+  });
+
+  const importMutation = trpc.skynet.importConfig.useMutation({
+    onSuccess: (result) => {
+      const parts = [];
+      if (result.results.routerConfig) parts.push("router config");
+      if (result.results.alertConfig) parts.push("alert settings");
+      if (result.results.devicePolicies > 0) parts.push(`${result.results.devicePolicies} device policies`);
+      toast.success("Configuration restored", {
+        description: parts.length > 0
+          ? `Imported: ${parts.join(", ")}`
+          : "No new data to import (all entries already exist)",
+      });
+      setImportData(null);
+      setImportFileName("");
+      setShowPreview(false);
+    },
+    onError: (err) => {
+      toast.error("Import failed", { description: err.message });
+    },
+  });
+
+  const handleExport = async () => {
+    try {
+      const result = await exportQuery.refetch();
+      if (result.data) {
+        const json = JSON.stringify(result.data, null, 2);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        a.href = url;
+        a.download = `skynet-glass-backup-${timestamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("Configuration exported", {
+          description: "Backup file downloaded successfully",
+        });
+      }
+    } catch (err: any) {
+      toast.error("Export failed", { description: err.message });
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError("");
+    setImportFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        // Validate basic structure
+        if (!data.version || data.version !== 1) {
+          setImportError("Invalid backup file: missing or unsupported version");
+          setImportData(null);
+          return;
+        }
+        if (!data.exportedAt) {
+          setImportError("Invalid backup file: missing export timestamp");
+          setImportData(null);
+          return;
+        }
+        setImportData(data);
+        setShowPreview(true);
+      } catch {
+        setImportError("Invalid JSON file — could not parse backup");
+        setImportData(null);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
+  const handleImport = () => {
+    if (!importData) return;
+    importMutation.mutate({
+      routerConfig: importData.routerConfig ?? null,
+      alertConfig: importData.alertConfig ?? null,
+      devicePolicies: importData.devicePolicies ?? [],
+    });
+  };
+
+  return (
+    <GlassCard className="mb-6 p-5">
+      <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
+        <FileJson className="w-4 h-4 text-gold" />
+        Configuration Backup & Restore
+      </h2>
+      <p className="text-[10px] text-muted-foreground mb-5">
+        Export all your configuration (router settings, alert thresholds, device policies) as a JSON
+        backup file, or restore from a previous backup.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        {/* Export */}
+        <div className="p-4 rounded-lg bg-secondary/30 border border-border">
+          <div className="flex items-center gap-2 mb-2">
+            <Download className="w-4 h-4 text-gold" />
+            <h3 className="text-xs font-semibold text-foreground">Export Backup</h3>
+          </div>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Download a JSON file containing all your current configuration.
+          </p>
+          <button
+            onClick={handleExport}
+            disabled={exportQuery.isFetching}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium
+              bg-gold/10 text-gold border border-gold/20
+              hover:bg-gold/20 hover:border-gold/30
+              transition-all duration-200 active:scale-95 disabled:opacity-50"
+          >
+            {exportQuery.isFetching ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            Export Configuration
+          </button>
+        </div>
+
+        {/* Import */}
+        <div className="p-4 rounded-lg bg-secondary/30 border border-border">
+          <div className="flex items-center gap-2 mb-2">
+            <Upload className="w-4 h-4 text-gold" />
+            <h3 className="text-xs font-semibold text-foreground">Restore Backup</h3>
+          </div>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Upload a previously exported JSON backup to restore configuration.
+          </p>
+          <label className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium
+            bg-secondary/50 text-foreground border border-border
+            hover:bg-secondary/70 hover:border-border/80
+            transition-all duration-200 cursor-pointer">
+            <Upload className="w-3.5 h-3.5" />
+            Select Backup File
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Import Error */}
+      {importError && (
+        <div className="flex items-center gap-2 text-xs text-severity-critical bg-severity-critical/10 rounded-md px-3 py-2 mb-4">
+          <FileWarning className="w-4 h-4 shrink-0" />
+          {importError}
+        </div>
+      )}
+
+      {/* Import Preview */}
+      {showPreview && importData && (
+        <div className="p-4 rounded-lg bg-secondary/20 border border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
+              <FileCheck className="w-3.5 h-3.5 text-severity-low" />
+              Backup Preview
+            </h3>
+            <button
+              onClick={() => { setShowPreview(false); setImportData(null); setImportFileName(""); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">File</span>
+              <span className="text-foreground font-mono">{importFileName}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Exported At</span>
+              <span className="text-foreground">{new Date(importData.exportedAt).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Router Config</span>
+              <span className={importData.routerConfig ? "text-severity-low" : "text-muted-foreground"}>
+                {importData.routerConfig ? `${importData.routerConfig.routerAddress}:${importData.routerConfig.routerPort}` : "Not included"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Alert Settings</span>
+              <span className={importData.alertConfig ? "text-severity-low" : "text-muted-foreground"}>
+                {importData.alertConfig ? "Included" : "Not included"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Device Policies</span>
+              <span className={importData.devicePolicies?.length ? "text-severity-low" : "text-muted-foreground"}>
+                {importData.devicePolicies?.length
+                  ? `${importData.devicePolicies.length} policies`
+                  : "None"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-500/10 rounded-md px-3 py-2 mb-3">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            Importing will overwrite your current router config and alert settings. Existing device policies with the same IP will be skipped.
+          </div>
+
+          <button
+            onClick={handleImport}
+            disabled={importMutation.isPending}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium
+              bg-gold/10 text-gold border border-gold/20
+              hover:bg-gold/20 hover:border-gold/30
+              transition-all duration-200 active:scale-95 disabled:opacity-50"
+          >
+            {importMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            Restore Configuration
+          </button>
         </div>
       )}
     </GlassCard>

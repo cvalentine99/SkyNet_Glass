@@ -451,3 +451,33 @@
 - [x] All 244 existing tests pass across 10 test files (no regressions)
 - [x] 0 TypeScript errors
 - [x] 43 tRPC routes verified intact (up from 37 — 6 new device policy routes)
+
+## Phase 20: Network Topology Map & Config Export/Backup
+
+### Feature 1 — Network Topology Map
+- [x] Research interactive graph/network visualization approach (Canvas/SVG) — chose HTML5 Canvas with spring physics
+- [x] Build backend route: skynet.getTopology — aggregates DHCP leases + device policies + DNS activity
+- [x] Create /topology route with interactive network diagram
+- [x] Show router as central hub node with LAN devices radiating outward in concentric rings
+- [x] Color-code devices by blocking status (green=normal, amber=IOT-blocked, red=fully blocked, cyan=DNS active)
+- [x] Show device details on hover (tooltip) and click (detail panel with IP, hostname, MAC, policy, DNS hits)
+- [x] Add "Topology" tab to sidebar navigation (Cpu icon)
+- [x] Ultrawide-optimized layout with 2-column grid (canvas + detail/list panel)
+- [x] Animated connection lines between router and devices with data packet dots
+- [x] Spring physics for smooth node positioning, glow effects, pulsing router hub
+- [x] Search and status filter controls overlaid on canvas
+- [x] Quick action buttons: Manage Device Policy, View DNS Activity
+- [x] Device list panel with status indicators and DNS hit badges
+
+### Feature 2 — Configuration Export/Backup/Restore
+- [x] Build backend route: skynet.exportConfig — exports router config, alert settings, device policies as JSON
+- [x] Build backend route: skynet.importConfig — imports/restores from JSON backup with dedup
+- [x] Add Export/Import section to Settings page (ConfigBackupSection component)
+- [x] Export button downloads a timestamped JSON file (skynet-glass-backup-YYYY-MM-DDTHH-MM-SS.json)
+- [x] Import with file upload, preview changes (file info, sections included, policy count), and confirm before applying
+- [x] Include validation for imported config format (version check, structure validation)
+- [x] Warning banner about overwrite behavior, skip duplicate device policies
+
+### Tests
+- [x] Write 34 vitest tests for topology parsing, node status, aggregation, export structure, import validation, dedup, and round-trip
+- [x] All 278 tests pass across 11 test files, 0 TypeScript errors

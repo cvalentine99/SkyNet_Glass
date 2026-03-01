@@ -12,6 +12,7 @@ import Ipsets from "./pages/Ipsets";
 import ThreatMap from "./pages/ThreatMap";
 import DnsSinkhole from "./pages/DnsSinkhole";
 import DevicePolicies from "./pages/DevicePolicies";
+import Topology from "./pages/Topology";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path={"/threatmap"} component={ThreatMap} />
       <Route path={"/dns"} component={DnsSinkhole} />
       <Route path={"/devices"} component={DevicePolicies} />
+      <Route path={"/topology"} component={Topology} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
