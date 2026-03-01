@@ -500,4 +500,4 @@
 - [x] Update frontend useAuth hook for LAN-only mode
 - [x] Write 9 tests verifying LAN-only auth bypass (287 total pass)
 - [x] Rebuild production bundle (builds cleanly)
-- [ ] Push to connected GitHub repo
+- [x] Push to connected GitHub repo (cvalentine99/SkyNet_Glass)
