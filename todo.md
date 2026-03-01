@@ -481,3 +481,12 @@
 ### Tests
 - [x] Write 34 vitest tests for topology parsing, node status, aggregation, export structure, import validation, dedup, and round-trip
 - [x] All 278 tests pass across 11 test files, 0 TypeScript errors
+
+## Phase 21: Bare Metal Deployment Guide (Ubuntu 24 LTS)
+
+- [x] Audit project build process, runtime deps, env vars, database requirements
+- [x] Test production build locally (builds cleanly: dist/index.js + dist/public/)
+- [x] Write comprehensive deployment guide with step-by-step instructions
+- [x] Include systemd service file, Nginx reverse proxy config, SSL setup
+- [x] Include LAN-only mode (no auth), firewall, backup strategy, troubleshooting
+- [ ] Deliver guide to user
