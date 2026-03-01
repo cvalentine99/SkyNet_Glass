@@ -620,6 +620,6 @@
 - [x] Fix testConnection: replace 'whoami' with BusyBox-compatible command (ASUS Merlin doesn't have whoami)
 
 ## Phase 27: Automated Install Script
-- [ ] Build install.sh that handles ALL deployment automatically: system packages, Node.js, pnpm, MySQL user/db/password, .env generation, build, migrations, systemd service
-- [ ] Push to GitHub
-- [ ] Deliver one-liner install command to user
+- [x] Build install.sh that handles ALL deployment automatically: system packages, Node.js, pnpm, MySQL user/db/password, .env generation, build, migrations, systemd service
+- [x] Push to GitHub
+- [x] Deliver one-liner install command to user

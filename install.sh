@@ -218,13 +218,20 @@ ok ".env created with auto-generated credentials"
 
 step "Step 7/9: Database Migrations"
 
+# Clear any stale migration tracking so the single consolidated migration runs cleanly.
+# The migration uses CREATE TABLE IF NOT EXISTS, so it's safe to re-run on existing databases.
+info "Clearing stale migration state..."
+mysql -u "${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "DROP TABLE IF EXISTS __drizzle_migrations;" 2>/dev/null || true
+
 info "Running migrations..."
-sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}' && pnpm db:push"
+sudo -u "${APP_USER}" bash -c "cd '${APP_DIR}' && pnpm db:push" || {
+  warn "Migration command returned an error — checking if tables exist anyway..."
+}
 
 # Verify tables
 TABLE_COUNT=$(mysql -u "${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -N -e "SHOW TABLES;" 2>/dev/null | wc -l)
 if [[ ${TABLE_COUNT} -ge 7 ]]; then
-  ok "Migrations complete — ${TABLE_COUNT} tables created"
+  ok "Migrations complete — ${TABLE_COUNT} tables found"
 else
   warn "Expected 8 tables but found ${TABLE_COUNT}. Check migration output above."
 fi

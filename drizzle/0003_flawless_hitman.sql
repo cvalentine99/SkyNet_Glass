@@ -1,1 +1,0 @@
-ALTER TABLE `skynet_config` MODIFY COLUMN `statsPath` varchar(255) NOT NULL DEFAULT '/user/skynet/stats.js';

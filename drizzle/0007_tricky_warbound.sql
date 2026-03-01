@@ -1,1 +1,0 @@
-ALTER TABLE `skynet_config` ADD `sshPort` int DEFAULT 22 NOT NULL;
