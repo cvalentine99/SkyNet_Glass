@@ -2,7 +2,7 @@
  * Skynet Fetcher
  *
  * Fetches stats.js from the router, parses it, and caches the result.
- * Also provides a polling manager that can be started/stopped.
+ * Also provides a polling manager and ban/unban command execution.
  */
 
 import axios from "axios";
@@ -13,6 +13,7 @@ import {
   getCachedStats,
   saveCachedStats,
   getLastContentHash,
+  saveStatsSnapshot,
 } from "./skynet-db";
 
 // ─── Auth Helper ───────────────────────────────────────────
@@ -29,6 +30,16 @@ export function buildAuthHeaders(
   if (!username) return {};
   const credentials = Buffer.from(`${username}:${password ?? ""}`).toString("base64");
   return { Authorization: `Basic ${credentials}` };
+}
+
+// ─── HTTPS Agent helper ────────────────────────────────────
+
+async function getHttpsAgent(protocol: string) {
+  if (protocol === "https") {
+    const https = await import("https");
+    return new https.Agent({ rejectUnauthorized: false });
+  }
+  return undefined;
 }
 
 // ─── In-memory state ────────────────────────────────────────
@@ -57,16 +68,11 @@ export async function fetchStatsFromRouter(): Promise<{
     }
 
     const url = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}${config.statsPath}`;
-
-    // Build auth header if credentials are configured
     const authHeaders = buildAuthHeaders(config.username, config.password);
 
     const response = await axios.get(url, {
       timeout: 15000,
-      // Accept self-signed certs for router HTTPS
-      httpsAgent: config.routerProtocol === "https"
-        ? new (await import("https")).Agent({ rejectUnauthorized: false })
-        : undefined,
+      httpsAgent: await getHttpsAgent(config.routerProtocol),
       headers: {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
@@ -86,6 +92,30 @@ export async function fetchStatsFromRouter(): Promise<{
 
     // Cache the result
     await saveCachedStats(stats, hash);
+
+    // Save historical snapshot if data changed
+    if (changed) {
+      try {
+        // Count unique countries from all connection types
+        const allCountries = new Set<string>();
+        [...(stats.topInboundBlocks || []), ...(stats.topOutboundBlocks || []), ...(stats.topHttpBlocks || [])].forEach(c => {
+          if (c.country) allCountries.add(c.country);
+        });
+
+        await saveStatsSnapshot({
+          ipsBanned: stats.kpi.ipsBanned || 0,
+          rangesBanned: stats.kpi.rangesBanned || 0,
+          inboundBlocks: stats.kpi.inboundBlocks || 0,
+          outboundBlocks: stats.kpi.outboundBlocks || 0,
+          totalBlocks: (stats.kpi.inboundBlocks || 0) + (stats.kpi.outboundBlocks || 0),
+          uniqueCountries: allCountries.size,
+          uniquePorts: (stats.inboundPortHits || []).length,
+          contentHash: hash,
+        });
+      } catch (histErr) {
+        console.warn("[Skynet] Failed to save history snapshot:", histErr);
+      }
+    }
 
     lastFetchTime = new Date();
     lastFetchError = null;
@@ -122,8 +152,6 @@ export async function triggerRouterGenstats(): Promise<{
     }
 
     const baseUrl = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}`;
-
-    // Build auth header if credentials are configured
     const authHeaders = buildAuthHeaders(config.username, config.password);
 
     // The router's httpd expects a form POST to /start_apply.htm
@@ -143,9 +171,7 @@ export async function triggerRouterGenstats(): Promise<{
           "Content-Type": "application/x-www-form-urlencoded",
           ...authHeaders,
         },
-        httpsAgent: config.routerProtocol === "https"
-          ? new (await import("https")).Agent({ rejectUnauthorized: false })
-          : undefined,
+        httpsAgent: await getHttpsAgent(config.routerProtocol),
       }
     );
 
@@ -156,6 +182,106 @@ export async function triggerRouterGenstats(): Promise<{
       error: `Failed to trigger stat regeneration: ${err.message}`,
     };
   }
+}
+
+// ─── Ban/Unban IP via router ────────────────────────────────
+
+/**
+ * Execute a Skynet firewall command on the router.
+ *
+ * The ASUS router's httpd supports running shell commands via
+ * POST /apply.cgi with SystemCmd. However, the more reliable
+ * method for Merlin firmware is to use the custom script trigger:
+ *
+ * POST /start_apply.htm with:
+ *   action_script = "start_firewall"  (triggers service-event)
+ *
+ * For Skynet specifically, we write the command to a temp file
+ * and trigger it via the SystemCmd mechanism.
+ *
+ * Skynet command format (from README.md):
+ *   Ban:   firewall ban ip 8.8.8.8 "Comment"
+ *   Unban: firewall unban ip 8.8.8.8
+ */
+async function executeRouterCommand(command: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  try {
+    const config = await getSkynetConfig();
+    if (!config) {
+      return { success: false, error: "No router configuration found" };
+    }
+
+    const baseUrl = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}`;
+    const authHeaders = buildAuthHeaders(config.username, config.password);
+    const httpsAgent = await getHttpsAgent(config.routerProtocol);
+
+    // Step 1: Write the command via SystemCmd (apply.cgi)
+    // ASUS Merlin routers support executing commands via /apply.cgi
+    await axios.post(
+      `${baseUrl}/apply.cgi`,
+      new URLSearchParams({
+        current_page: "Main_Analysis_Content.asp",
+        next_page: "Main_Analysis_Content.asp",
+        action_mode: " Refresh ",
+        SystemCmd: command,
+      }).toString(),
+      {
+        timeout: 15000,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: `${baseUrl}/Main_Analysis_Content.asp`,
+          ...authHeaders,
+        },
+        httpsAgent,
+      }
+    );
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    const errorMsg = err.response?.status === 401 || err.response?.status === 403
+      ? "Authentication failed — check router credentials"
+      : `Command execution failed: ${err.message}`;
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Ban an IP address via Skynet.
+ * Executes: firewall ban ip <ip> "<comment>"
+ */
+export async function banIP(ip: string, comment?: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  // Validate IP format (basic check)
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+
+  const desc = comment || `Banned via Skynet Glass ${new Date().toISOString().slice(0, 19)}`;
+  // Sanitize comment — remove shell-unsafe characters
+  const safeComment = desc.replace(/[;"'`$\\|&<>]/g, "").slice(0, 200);
+
+  const cmd = `/jffs/scripts/firewall ban ip ${ip} "${safeComment}"`;
+  return executeRouterCommand(cmd);
+}
+
+/**
+ * Unban an IP address via Skynet.
+ * Executes: firewall unban ip <ip>
+ */
+export async function unbanIP(ip: string): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+    return { success: false, error: `Invalid IP address: ${ip}` };
+  }
+
+  const cmd = `/jffs/scripts/firewall unban ip ${ip}`;
+  return executeRouterCommand(cmd);
 }
 
 // ─── Polling Manager ────────────────────────────────────────

@@ -108,3 +108,36 @@
 ### Test & Deliver
 - [x] Update all tests (22 passing, 0 TS errors)
 - [x] Checkpoint and deliver
+
+## Phase 10: IP Ban/Unban Controls & Historical Stats Tracking
+
+### Research
+- [x] Study firewall.sh ban/unban command structure (firewall ban ip X / firewall unban ip X)
+- [x] Study how start_apply.htm accepts Skynet commands (action_script + SystemCmd)
+- [x] Document the exact POST body format for ban/unban
+
+### IP Ban/Unban Backend
+- [x] Add tRPC route: skynet.banIP — sends ban command to router
+- [x] Add tRPC route: skynet.unbanIP — sends unban command to router
+- [x] Respect Skynet's actual command format (SystemCmd with firewall ban/unban ip)
+- [x] Add confirmation/safety checks (IP regex validation + comment sanitization)
+
+### IP Ban/Unban Frontend
+- [x] Add Ban IP button to ThreatTable rows + manual ban form
+- [x] Add Ban/Unban buttons to LiveConnectionsTable rows with confirm/cancel
+- [x] Add confirmation dialog before ban/unban actions
+- [x] Show success/error feedback via toast notifications
+
+### Historical Stats Tracking Backend
+- [x] Create DB table for historical stats snapshots (skynet_stats_history)
+- [x] Store KPI values on each stats fetch (dedup by content hash)
+- [x] Add tRPC route: skynet.getHistory — returns historical data points
+
+### Historical Stats Trend Charts Frontend
+- [x] Build TrendChart component showing block counts over time
+- [x] Add time range selector (24h, 7d, 30d, all)
+- [x] Integrate into dashboard layout (above Port Statistics)
+
+### Test & Deliver
+- [x] Write vitest tests for ban/unban and history (12 tests)
+- [x] Checkpoint and deliver (34 tests passing)

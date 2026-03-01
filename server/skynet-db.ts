@@ -1,6 +1,6 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte } from "drizzle-orm";
 import { getDb } from "./db";
-import { skynetConfig, skynetStatsCache, type SkynetConfig } from "../drizzle/schema";
+import { skynetConfig, skynetStatsCache, skynetStatsHistory, type SkynetConfig, type SkynetStatsHistory } from "../drizzle/schema";
 import type { SkynetStats } from "./skynet-parser";
 
 // ─── Config CRUD ────────────────────────────────────────────
@@ -93,4 +93,57 @@ export async function getLastContentHash(): Promise<string | null> {
     .orderBy(desc(skynetStatsCache.fetchedAt))
     .limit(1);
   return rows[0]?.contentHash ?? null;
+}
+
+// ─── Historical Stats ──────────────────────────────────────
+
+/**
+ * Save a historical stats snapshot.
+ * Called after each successful stats fetch when data has changed.
+ */
+export async function saveStatsSnapshot(params: {
+  ipsBanned: number;
+  rangesBanned: number;
+  inboundBlocks: number;
+  outboundBlocks: number;
+  totalBlocks: number;
+  uniqueCountries: number;
+  uniquePorts: number;
+  contentHash: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(skynetStatsHistory).values({
+    ipsBanned: params.ipsBanned,
+    rangesBanned: params.rangesBanned,
+    inboundBlocks: params.inboundBlocks,
+    outboundBlocks: params.outboundBlocks,
+    totalBlocks: params.totalBlocks,
+    uniqueCountries: params.uniqueCountries,
+    uniquePorts: params.uniquePorts,
+    contentHash: params.contentHash,
+    snapshotAt: new Date(),
+  });
+}
+
+/**
+ * Get historical stats snapshots within a time range.
+ * @param hoursBack - How many hours back to look (default 24)
+ * @param limit - Max number of rows (default 500)
+ */
+export async function getStatsHistory(hoursBack: number = 24, limit: number = 500): Promise<SkynetStatsHistory[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+
+  const rows = await db
+    .select()
+    .from(skynetStatsHistory)
+    .where(gte(skynetStatsHistory.snapshotAt, since))
+    .orderBy(desc(skynetStatsHistory.snapshotAt))
+    .limit(limit);
+
+  return rows;
 }

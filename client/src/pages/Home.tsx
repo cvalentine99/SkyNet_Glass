@@ -19,6 +19,7 @@ import { OutboundBlocksChart } from "@/components/charts/OutboundBlocksChart";
 import { ThreatMapPanel } from "@/components/ThreatMapPanel";
 import { ThreatTable } from "@/components/ThreatTable";
 import { LiveConnectionsTable } from "@/components/LiveConnectionsTable";
+import { TrendChart } from "@/components/charts/TrendChart";
 import {
   KpiRowSkeleton,
   ChartSkeleton,
@@ -249,6 +250,11 @@ export default function Home() {
                     <BlockedConnectionsChart inboundBlocks={kpiData.inboundBlocks} outboundBlocks={kpiData.outboundBlocks} />
                   </div>
                   <ConnectionTypesChart data={skynet.connectionTypes} />
+                </div>
+
+                {/* Block Trends (Historical) */}
+                <div className="mb-4">
+                  <TrendChart />
                 </div>
 
                 {/* Port Statistics + Country Distribution */}

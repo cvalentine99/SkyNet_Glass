@@ -63,3 +63,32 @@ export const skynetStatsCache = mysqlTable("skynet_stats_cache", {
 });
 
 export type SkynetStatsCache = typeof skynetStatsCache.$inferSelect;
+
+/**
+ * Historical stats snapshots — stores KPI values on each successful fetch.
+ * Used to build trend charts showing block counts over time.
+ * One row per successful stats fetch.
+ */
+export const skynetStatsHistory = mysqlTable("skynet_stats_history", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Total IPs banned at time of snapshot */
+  ipsBanned: int("ipsBanned").notNull().default(0),
+  /** Total ranges banned at time of snapshot */
+  rangesBanned: int("rangesBanned").notNull().default(0),
+  /** Total inbound blocks at time of snapshot */
+  inboundBlocks: int("inboundBlocks").notNull().default(0),
+  /** Total outbound blocks at time of snapshot */
+  outboundBlocks: int("outboundBlocks").notNull().default(0),
+  /** Total blocks (inbound + outbound) */
+  totalBlocks: int("totalBlocks").notNull().default(0),
+  /** Number of unique countries seen in this snapshot */
+  uniqueCountries: int("uniqueCountries").notNull().default(0),
+  /** Number of unique ports targeted in this snapshot */
+  uniquePorts: int("uniquePorts").notNull().default(0),
+  /** Content hash of the stats.js that produced this snapshot */
+  contentHash: varchar("contentHash", { length: 64 }),
+  /** When this snapshot was taken */
+  snapshotAt: timestamp("snapshotAt").defaultNow().notNull(),
+});
+
+export type SkynetStatsHistory = typeof skynetStatsHistory.$inferSelect;

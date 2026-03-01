@@ -4,13 +4,22 @@
  * 
  * Uses the actual SkynetConnection shape from the parser:
  *   { ip, banReason, alienVaultUrl, country, associatedDomains }
- * The original Skynet stats.js stores per-connection data in these fields,
- * NOT in srcIP/dstIP/protocol/timestamp format.
+ * Includes ban button per row to add IPs to Skynet blacklist.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Globe, ExternalLink } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import {
+  Activity,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Globe,
+  ExternalLink,
+  ShieldAlert,
+  Loader2,
+} from "lucide-react";
 
 export interface ConnectionEntry {
   ip: string;
@@ -27,6 +36,62 @@ interface LiveConnectionsTableProps {
 }
 
 type TabId = "inbound" | "outbound" | "http";
+
+function BanButton({ ip }: { ip: string }) {
+  const utils = trpc.useUtils();
+  const [confirming, setConfirming] = useState(false);
+
+  const ban = trpc.skynet.banIP.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Banned ${ip}`, { description: "IP added to Skynet blacklist" });
+        utils.skynet.getStats.invalidate();
+      } else {
+        toast.error(`Failed to ban ${ip}`, { description: result.error || "Unknown error" });
+      }
+      setConfirming(false);
+    },
+    onError: (err) => {
+      toast.error("Ban failed", { description: err.message });
+      setConfirming(false);
+    },
+  });
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => ban.mutate({ ip, comment: `Banned from Skynet Glass dashboard` })}
+          disabled={ban.isPending}
+          className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-severity-critical/20 text-severity-critical
+            hover:bg-severity-critical/30 transition-colors"
+        >
+          {ban.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Yes"}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-secondary/50 text-muted-foreground
+            hover:bg-secondary/80 transition-colors"
+        >
+          No
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold
+        bg-severity-critical/10 text-severity-critical/70 hover:bg-severity-critical/20 hover:text-severity-critical
+        transition-colors"
+      title={`Ban ${ip}`}
+    >
+      <ShieldAlert className="w-2.5 h-2.5" />
+      Ban
+    </button>
+  );
+}
 
 export function LiveConnectionsTable({
   inboundConnections,
@@ -86,12 +151,13 @@ export function LiveConnectionsTable({
               <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Ban Reason</th>
               <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Domains</th>
               <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Intel</th>
+              <th className="text-center px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Action</th>
             </tr>
           </thead>
           <tbody>
             {currentTab.data.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
                   No data available — connect your router to see live connections
                 </td>
               </tr>
@@ -134,6 +200,9 @@ export function LiveConnectionsTable({
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <BanButton ip={conn.ip} />
                   </td>
                 </motion.tr>
               ))

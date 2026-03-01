@@ -3,7 +3,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { getSkynetConfig, upsertSkynetConfig } from "./skynet-db";
+import { getSkynetConfig, upsertSkynetConfig, getStatsHistory } from "./skynet-db";
 import {
   buildAuthHeaders,
   fetchStatsFromRouter,
@@ -12,6 +12,8 @@ import {
   startPolling,
   stopPolling,
   triggerRouterGenstats,
+  banIP,
+  unbanIP,
 } from "./skynet-fetcher";
 
 export const appRouter = router({
@@ -114,6 +116,67 @@ export const appRouter = router({
       return { success: true };
     }),
 
+    // ─── Ban/Unban IP ─────────────────────────────────────────
+
+    /**
+     * Ban an IP address via Skynet.
+     * Sends: /jffs/scripts/firewall ban ip <ip> "<comment>"
+     * via the router's apply.cgi SystemCmd mechanism.
+     */
+    banIP: publicProcedure
+      .input(
+        z.object({
+          ip: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address"),
+          comment: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await banIP(input.ip, input.comment);
+      }),
+
+    /**
+     * Unban an IP address via Skynet.
+     * Sends: /jffs/scripts/firewall unban ip <ip>
+     * via the router's apply.cgi SystemCmd mechanism.
+     */
+    unbanIP: publicProcedure
+      .input(
+        z.object({
+          ip: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "Invalid IP address"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await unbanIP(input.ip);
+      }),
+
+    // ─── Historical Stats ─────────────────────────────────────
+
+    /**
+     * Get historical stats snapshots for trend charts.
+     * Returns data points within the specified time range.
+     */
+    getHistory: publicProcedure
+      .input(
+        z.object({
+          hoursBack: z.number().int().min(1).max(8760).default(24), // max 1 year
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        const hoursBack = input?.hoursBack ?? 24;
+        const history = await getStatsHistory(hoursBack);
+        return history.map(h => ({
+          id: h.id,
+          ipsBanned: h.ipsBanned,
+          rangesBanned: h.rangesBanned,
+          inboundBlocks: h.inboundBlocks,
+          outboundBlocks: h.outboundBlocks,
+          totalBlocks: h.totalBlocks,
+          uniqueCountries: h.uniqueCountries,
+          uniquePorts: h.uniquePorts,
+          snapshotAt: h.snapshotAt,
+        }));
+      }),
+
     /** Test connection to the router */
     testConnection: publicProcedure
       .input(
@@ -131,7 +194,6 @@ export const appRouter = router({
           const axios = (await import("axios")).default;
           const url = `${input.routerProtocol}://${input.routerAddress}:${input.routerPort}${input.statsPath}`;
 
-          // Build auth headers if credentials provided
           const authHeaders = buildAuthHeaders(input.username, input.password);
 
           const response = await axios.get(url, {
@@ -146,7 +208,6 @@ export const appRouter = router({
           });
 
           const content = response.data as string;
-          // Check if it looks like a valid stats.js file
           const isValid =
             content.includes("SetBLCount1") ||
             content.includes("DataInPortHits") ||
