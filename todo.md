@@ -351,3 +351,27 @@
 - [x] Wrote 34 vitest tests for bulk import parser (IPs, CIDR, comments, dedup, validation, realistic files)
 - [x] All 202 tests pass across 9 test files
 - [x] 0 TypeScript errors, 35 tRPC routes verified intact
+
+## Phase 17: Connection Detail Drill-Down
+
+### Frontend — LiveConnectionsTable Enhancement
+- [x] Add expandable row to each connection entry (click to expand/collapse)
+- [x] Show block details: direction, ban reason, /24 range, associated domains
+- [x] Integrate GeoIP resolver for source IP enrichment (country, city, ISP, ASN, org, flag emoji, lat/lon)
+- [x] One-click "Ban IP" button with confirmation dialog and toast
+- [x] One-click "Whitelist IP" button with confirmation dialog and toast
+- [x] One-click "Ban /24 Range" button (auto-derived from IP) with confirmation
+- [x] Visual indicator for expanded state (chevron rotates 180° when expanded)
+- [x] Smooth expand/collapse animation via framer-motion AnimatePresence
+- [x] Copy IP to clipboard button with checkmark feedback
+- [x] Link to Ipsets page with pre-filled search for the IP ("Check Ipsets" button)
+- [x] AlienVault OTX external link in expanded detail panel
+- [x] 4-panel detail grid: Location, Network (ISP/ASN/Org), Block Details, Associated Domains
+- [x] Tab badge counts showing number of entries per direction
+- [x] Expanded row resets when switching tabs
+- [x] Updated subtitle: "click any row for details"
+
+### Tests
+- [x] All 202 existing tests pass (9 test files)
+- [x] 0 TypeScript errors
+- [x] 0 console errors
