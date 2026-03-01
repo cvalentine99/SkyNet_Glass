@@ -69,3 +69,16 @@
 - [x] Build scroll-to-section behavior for Ports, Threats, Connections
 - [x] Removed 4 dead stubs: Alerts, Banned IPs, AlienVault, Live Monitor
 - [x] Test and checkpoint (22 tests passing)
+
+## Phase 8: Accuracy Fixes (from audit report)
+### Critical
+- [x] #1 Removed fabricated timeline — now shows honest inbound vs outbound bar chart with totals
+- [x] #4 Fixed LiveConnectionsTable to use actual SkynetConnection fields (ip, banReason, country, alienVaultUrl, associatedDomains)
+### Medium
+- [x] #2 Renamed to "Port Hit Distribution", uses honest service names from port numbers (SSH, Telnet, HTTP, etc.)
+- [x] #3 Country distribution now aggregates from ALL connection types (inbound+outbound+HTTP+topBlocks)
+### Nit
+- [x] #5 Missing original features — acknowledged as design choice, no action needed
+- [x] #6 Changed default stats path to /user/skynet/stats.js everywhere (Settings, routers, schema)
+- [x] #7 Uses already-parsed alienVaultUrl from stats.js, falls back to OTX URL only when missing
+- [x] Test and checkpoint (22 tests passing, 0 TS errors)

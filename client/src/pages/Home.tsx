@@ -194,7 +194,7 @@ export default function Home() {
                 {/* Primary Charts Row — Blocked Connections + Attack Types */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
                   <div className="xl:col-span-2">
-                    <BlockedConnectionsChart data24h={skynet.blockedConnections24h} data7d={skynet.blockedConnections7d} />
+                    <BlockedConnectionsChart inboundBlocks={kpiData.inboundBlocks} outboundBlocks={kpiData.outboundBlocks} />
                   </div>
                   <ConnectionTypesChart data={skynet.connectionTypes} />
                 </div>

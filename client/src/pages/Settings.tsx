@@ -33,7 +33,7 @@ export default function SettingsPage() {
   const [routerAddress, setRouterAddress] = useState("192.168.50.1");
   const [routerPort, setRouterPort] = useState(8443);
   const [routerProtocol, setRouterProtocol] = useState<"http" | "https">("https");
-  const [statsPath, setStatsPath] = useState("/ext/skynet/stats.js");
+  const [statsPath, setStatsPath] = useState("/user/skynet/stats.js");
   const [pollingInterval, setPollingInterval] = useState(300);
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [username, setUsername] = useState("");
@@ -285,11 +285,11 @@ export default function SettingsPage() {
                   type="text"
                   value={statsPath}
                   onChange={(e) => setStatsPath(e.target.value)}
-                  placeholder="/ext/skynet/stats.js"
+                  placeholder="/user/skynet/stats.js"
                   className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Default: /ext/skynet/stats.js — only change if you've customized Skynet's WebUI path
+                  Default: /user/skynet/stats.js — only change if you've customized Skynet's WebUI path
                 </p>
               </div>
 

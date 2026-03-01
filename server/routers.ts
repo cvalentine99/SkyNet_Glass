@@ -53,7 +53,7 @@ export const appRouter = router({
           routerAddress: z.string().min(1, "Router address is required"),
           routerPort: z.number().int().min(1).max(65535).default(80),
           routerProtocol: z.enum(["http", "https"]).default("http"),
-          statsPath: z.string().default("/ext/skynet/stats.js"),
+          statsPath: z.string().default("/user/skynet/stats.js"),
           pollingInterval: z.number().int().min(30).max(86400).default(300),
           pollingEnabled: z.boolean().default(true),
           username: z.string().optional(),

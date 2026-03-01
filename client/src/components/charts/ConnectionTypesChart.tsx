@@ -1,7 +1,11 @@
 /**
- * ConnectionTypesChart — Donut chart for attack type distribution
- * Design: Glass Cockpit — security-focused color palette
- * Accepts data via props; no direct sample data import.
+ * ConnectionTypesChart — Donut chart for port hit distribution
+ * 
+ * ACCURACY NOTE: The original Skynet WebUI does NOT categorize ports into
+ * attack types. It shows raw port numbers and hit counts. This chart now
+ * groups by well-known service names (SSH, Telnet, HTTP, etc.) derived from
+ * port numbers — which is factual — rather than inventing attack labels
+ * like "SSH Brute Force" or "Telnet Exploit".
  */
 import { motion } from "framer-motion";
 import {
@@ -20,6 +24,8 @@ const COLORS = [
   "#45B764", // green
   "#D4A843", // amber
   "#64748B", // slate
+  "#8B5CF6", // purple
+  "#EC4899", // pink
 ];
 
 interface ConnectionTypesChartProps {
@@ -33,7 +39,7 @@ const CustomTooltip = ({ active, payload }: any) => {
     <div className="glass-card-bright p-3 text-xs border border-border/20">
       <p className="font-medium text-foreground mb-1">{item.name}</p>
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">Blocks:</span>
+        <span className="text-muted-foreground">Hits:</span>
         <span className="font-mono font-medium text-gold tabular-nums">
           {item.value.toLocaleString()}
         </span>
@@ -65,36 +71,42 @@ export function ConnectionTypesChart({ data }: ConnectionTypesChartProps) {
       className="glass-card p-5"
     >
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Attack Types</h3>
-        <p className="text-[11px] text-muted-foreground mt-0.5">Distribution by connection type</p>
+        <h3 className="text-sm font-semibold text-foreground">Port Hit Distribution</h3>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Inbound blocks grouped by target service</p>
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="45%"
-            cy="50%"
-            innerRadius={60}
-            outerRadius={100}
-            paddingAngle={2}
-            dataKey="value"
-            stroke="oklch(0.05 0 0)"
-            strokeWidth={2}
-          >
-            {data.map((_, index) => (
-              <Cell key={index} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend
-            layout="vertical"
-            align="right"
-            verticalAlign="middle"
-            content={renderLegend}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+      {data.length === 0 ? (
+        <div className="flex items-center justify-center h-[280px] text-muted-foreground text-xs">
+          No port hit data available
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={280}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="45%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={100}
+              paddingAngle={2}
+              dataKey="value"
+              stroke="oklch(0.05 0 0)"
+              strokeWidth={2}
+            >
+              {data.map((_, index) => (
+                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              layout="vertical"
+              align="right"
+              verticalAlign="middle"
+              content={renderLegend}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      )}
     </motion.div>
   );
 }

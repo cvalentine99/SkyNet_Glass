@@ -2,13 +2,20 @@
  * useSkynetStats — Fetches Skynet stats from the backend via tRPC.
  * Falls back to sample data when no router is configured or data is unavailable.
  * Provides fully-typed data for every dashboard component.
+ *
+ * ACCURACY NOTES:
+ * - No fabricated timeline data — Skynet stats.js has no hourly/daily breakdown
+ * - Connection tables use actual SkynetConnection fields (ip, banReason, country, etc.)
+ * - Port grouping uses honest service names, not invented attack labels
+ * - Country distribution aggregates from ALL connection types
+ * - AlienVault URLs use the already-parsed values from stats.js
  */
 import { trpc } from "@/lib/trpc";
 import * as sampleData from "@/lib/data";
 
 export function useSkynetStats() {
   const statsQuery = trpc.skynet.getStats.useQuery(undefined, {
-    refetchInterval: 60_000, // Refetch from cache every 60s
+    refetchInterval: 60_000,
     retry: 1,
     staleTime: 30_000,
   });
@@ -66,34 +73,30 @@ export function useSkynetStats() {
       }))
     : sampleData.sourcePortHits;
 
-  // ---- Blocked Connections Timeline ----
-  // The original Skynet stats.js doesn't provide hourly/daily timeline data directly.
-  // We synthesize it from the KPI totals when live, or use sample data.
-  // When live data is connected, we generate a realistic distribution from the totals.
-  const blockedConnections24h = isUsingLiveData
-    ? generateTimeline24h(stats!.kpi.inboundBlocks, stats!.kpi.outboundBlocks)
-    : sampleData.blockedConnections24h;
-
-  const blockedConnections7d = isUsingLiveData
-    ? generateTimeline7d(stats!.kpi.inboundBlocks, stats!.kpi.outboundBlocks)
-    : sampleData.blockedConnections7d;
-
-  // ---- Connection Types (for pie chart) ----
-  // Derive from port hits — group by service type
+  // ---- Port Hit Distribution (for donut chart) ----
+  // Groups ports by well-known service name — factual, not invented attack labels
   const connectionTypes = isUsingLiveData
-    ? deriveConnectionTypes(stats!.inboundPortHits)
+    ? derivePortDistribution(stats!.inboundPortHits)
     : sampleData.connectionTypes;
 
   // ---- Country Distribution ----
-  // Derive from top blocks country data
+  // Aggregates from ALL connection types (inbound + outbound + HTTP + top blocks)
   const countryDistribution = isUsingLiveData
-    ? deriveCountryDistribution(stats!.topInboundBlocks)
+    ? deriveCountryDistribution(
+        stats!.lastInboundConnections,
+        stats!.lastOutboundConnections,
+        stats!.lastHttpConnections,
+        stats!.topInboundBlocks,
+        stats!.topOutboundBlocks,
+        stats!.topHttpBlocks
+      )
     : sampleData.countryDistribution;
 
   // ---- Connections Tables ----
+  // Uses actual SkynetConnection shape: { ip, banReason, alienVaultUrl, country, associatedDomains }
   const lastInboundConnections = isUsingLiveData
     ? stats!.lastInboundConnections.map(mapConnection)
-    : sampleData.blockedConnections24h.length > 0 ? [] : []; // empty when live but no data
+    : [];
 
   const lastOutboundConnections = isUsingLiveData
     ? stats!.lastOutboundConnections.map(mapConnection)
@@ -121,27 +124,20 @@ export function useSkynetStats() {
     : [];
 
   // ---- Blocked IPs (for threat table) ----
+  // Uses the already-parsed alienVaultUrl from stats.js (Fix #7)
   const blockedIPs = isUsingLiveData
-    ? stats!.topInboundBlocks.map((b) => ({
-        ip: b.ip,
-        hits: b.hits,
-        country: b.country,
-        countryCode: "",
-        banReason: "*",
-        severity: getSeverity(b.hits),
-        alienVaultUrl: `https://otx.alienvault.com/indicator/ip/${b.ip}`,
-        associatedDomains: [] as string[],
-        firstSeen: "",
-        lastSeen: "",
-      }))
+    ? buildBlockedIPs(
+        stats!.topInboundBlocks,
+        stats!.lastInboundConnections,
+        stats!.lastOutboundConnections,
+        stats!.lastHttpConnections
+      )
     : sampleData.blockedIPs;
 
   return {
     kpiData,
     inboundPortHits,
     sourcePortHits,
-    blockedConnections24h,
-    blockedConnections7d,
     connectionTypes,
     countryDistribution,
     lastInboundConnections,
@@ -185,120 +181,116 @@ function getServiceName(port: number): string {
   return services[port] ?? `Port ${port}`;
 }
 
+/**
+ * Map a parsed SkynetConnection to the ConnectionEntry shape
+ * used by LiveConnectionsTable. Uses the ACTUAL fields from stats.js.
+ */
 function mapConnection(c: any) {
   return {
-    timestamp: c.timestamp || "",
-    srcIP: c.srcIP || c.src || "",
-    srcPort: c.srcPort || 0,
-    dstIP: c.dstIP || c.dst || "",
-    dstPort: c.dstPort || 0,
-    protocol: c.protocol || c.proto || "TCP",
-    reason: c.reason || c.blockType || "Blocked",
+    ip: c.ip || "",
+    banReason: c.banReason || "*",
+    alienVaultUrl: c.alienVaultUrl || "",  // Use parsed URL directly (Fix #7)
+    country: c.country || "",
+    associatedDomains: Array.isArray(c.associatedDomains) ? c.associatedDomains : [],
   };
 }
 
 /**
- * Generate a 24h timeline from total block counts.
- * Uses a sinusoidal distribution to simulate typical attack patterns
- * (more attacks during night hours UTC).
+ * Derive port hit distribution from port hits.
+ * Groups by well-known service name — factual labels only.
  */
-function generateTimeline24h(totalInbound: number, totalOutbound: number) {
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  // Weight: higher activity 00-08 UTC (night scanners)
-  const weights = hours.map(h => {
-    const rad = ((h - 4) / 24) * Math.PI * 2;
-    return 1 + 0.6 * Math.sin(rad);
-  });
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
-
-  return hours.map((h, i) => ({
-    time: `${String(h).padStart(2, "0")}:00`,
-    inbound: Math.round((totalInbound / totalWeight) * weights[i] / 30), // ~30 days avg
-    outbound: Math.round((totalOutbound / totalWeight) * weights[i] / 30),
-  }));
-}
-
-/**
- * Generate a 7-day timeline from total block counts.
- */
-function generateTimeline7d(totalInbound: number, totalOutbound: number) {
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const weights = [1.1, 1.0, 1.05, 0.95, 1.0, 0.9, 1.0];
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
-
-  return days.map((day, i) => ({
-    day,
-    inbound: Math.round((totalInbound / totalWeight) * weights[i] / 4), // ~4 weeks
-    outbound: Math.round((totalOutbound / totalWeight) * weights[i] / 4),
-  }));
-}
-
-/**
- * Derive connection types from port hits for the pie chart.
- * Groups ports into attack categories.
- */
-function deriveConnectionTypes(portHits: { port: number; hits: number }[]) {
-  const categories: Record<string, number> = {
-    "Telnet Exploit": 0,
-    "SSH Brute Force": 0,
-    "Port Scan": 0,
-    "SMB Exploit": 0,
-    "HTTP Flood": 0,
-    "Other": 0,
-  };
+function derivePortDistribution(portHits: { port: number; hits: number }[]) {
+  const groups: Record<string, number> = {};
 
   for (const p of portHits) {
-    if (p.port === 23) categories["Telnet Exploit"] += p.hits;
-    else if (p.port === 22) categories["SSH Brute Force"] += p.hits;
-    else if (p.port === 445) categories["SMB Exploit"] += p.hits;
-    else if (p.port === 80 || p.port === 443 || p.port === 8080 || p.port === 8443) categories["HTTP Flood"] += p.hits;
-    else if (p.port === 3389 || p.port === 5900) categories["Port Scan"] += p.hits;
-    else categories["Other"] += p.hits;
+    const name = getServiceName(p.port);
+    groups[name] = (groups[name] || 0) + p.hits;
   }
 
-  return Object.entries(categories)
+  return Object.entries(groups)
     .filter(([_, v]) => v > 0)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 }
 
 /**
- * Derive country distribution from top inbound blocks.
- * Aggregates hits by country.
+ * Derive country distribution from ALL connection sources.
+ * Aggregates hits by country from connections + top blocks.
  */
-function deriveCountryDistribution(blocks: { ip: string; hits: number; country: string }[]) {
+function deriveCountryDistribution(
+  inboundConns: any[],
+  outboundConns: any[],
+  httpConns: any[],
+  topInbound: any[],
+  topOutbound: any[],
+  topHttp: any[]
+) {
   const countryMap: Record<string, { country: string; blocks: number }> = {};
 
-  for (const b of blocks) {
-    const country = b.country || "Unknown";
+  // Helper to add country data
+  const addCountry = (country: string, hits: number) => {
+    if (!country || country === "**" || country === "*") return;
     if (!countryMap[country]) {
       countryMap[country] = { country, blocks: 0 };
     }
-    countryMap[country].blocks += b.hits;
+    countryMap[country].blocks += hits;
+  };
+
+  // From top blocks (these have hit counts)
+  for (const b of [...topInbound, ...topOutbound, ...topHttp]) {
+    addCountry(b.country, b.hits || 1);
+  }
+
+  // From connection tables (each connection = 1 hit for country counting)
+  for (const c of [...inboundConns, ...outboundConns, ...httpConns]) {
+    addCountry(c.country, 1);
   }
 
   const sorted = Object.values(countryMap).sort((a, b) => b.blocks - a.blocks);
   const totalBlocks = sorted.reduce((sum, c) => sum + c.blocks, 0) || 1;
 
-  // Take top 9 and group the rest as "Others"
-  const top = sorted.slice(0, 9).map((c, i) => ({
+  return sorted.map((c) => ({
     country: c.country,
     code: getCountryCode(c.country),
     blocks: c.blocks,
     percentage: Math.round((c.blocks / totalBlocks) * 1000) / 10,
   }));
+}
 
-  const othersBlocks = sorted.slice(9).reduce((sum, c) => sum + c.blocks, 0);
-  if (othersBlocks > 0) {
-    top.push({
-      country: "Others",
-      code: "XX",
-      blocks: othersBlocks,
-      percentage: Math.round((othersBlocks / totalBlocks) * 1000) / 10,
-    });
+/**
+ * Build the blockedIPs array for the ThreatTable.
+ * Uses already-parsed alienVaultUrl from stats.js (Fix #7).
+ * Enriches top blocks with connection data where available.
+ */
+function buildBlockedIPs(
+  topBlocks: any[],
+  inboundConns: any[],
+  outboundConns: any[],
+  httpConns: any[]
+) {
+  // Build a lookup from all connections for enrichment
+  const connLookup: Record<string, any> = {};
+  for (const c of [...inboundConns, ...outboundConns, ...httpConns]) {
+    if (c.ip && !connLookup[c.ip]) {
+      connLookup[c.ip] = c;
+    }
   }
 
-  return top;
+  return topBlocks.map((b) => {
+    const conn = connLookup[b.ip];
+    return {
+      ip: b.ip,
+      hits: b.hits,
+      country: b.country,
+      countryCode: getCountryCode(b.country),
+      banReason: conn?.banReason || "*",
+      severity: getSeverity(b.hits),
+      alienVaultUrl: conn?.alienVaultUrl || `https://otx.alienvault.com/indicator/ip/${b.ip}`,
+      associatedDomains: conn?.associatedDomains || [],
+      firstSeen: "",
+      lastSeen: "",
+    };
+  });
 }
 
 function getCountryCode(country: string): string {

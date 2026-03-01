@@ -31,8 +31,8 @@ export const skynetConfig = mysqlTable("skynet_config", {
   routerPort: int("routerPort").notNull().default(80),
   /** Protocol: http or https */
   routerProtocol: varchar("routerProtocol", { length: 10 }).notNull().default("http"),
-  /** Path to stats.js on the router (default: /ext/skynet/stats.js) */
-  statsPath: varchar("statsPath", { length: 255 }).notNull().default("/ext/skynet/stats.js"),
+  /** Path to stats.js on the router (default: /user/skynet/stats.js) */
+  statsPath: varchar("statsPath", { length: 255 }).notNull().default("/user/skynet/stats.js"),
   /** Polling interval in seconds (default: 300 = 5 minutes) */
   pollingInterval: int("pollingInterval").notNull().default(300),
   /** Whether polling is enabled */

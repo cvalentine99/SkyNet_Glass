@@ -16,44 +16,8 @@ export const kpiData = {
   topThreatCountry: "China",
 };
 
-// --- 24h Blocked Connections (hourly) ---
-export const blockedConnections24h = [
-  { time: "00:00", inbound: 126, outbound: 8 },
-  { time: "01:00", inbound: 146, outbound: 12 },
-  { time: "02:00", inbound: 181, outbound: 15 },
-  { time: "03:00", inbound: 192, outbound: 18 },
-  { time: "04:00", inbound: 233, outbound: 22 },
-  { time: "05:00", inbound: 251, outbound: 19 },
-  { time: "06:00", inbound: 280, outbound: 14 },
-  { time: "07:00", inbound: 295, outbound: 11 },
-  { time: "08:00", inbound: 300, outbound: 9 },
-  { time: "09:00", inbound: 283, outbound: 7 },
-  { time: "10:00", inbound: 295, outbound: 6 },
-  { time: "11:00", inbound: 284, outbound: 8 },
-  { time: "12:00", inbound: 271, outbound: 10 },
-  { time: "13:00", inbound: 262, outbound: 12 },
-  { time: "14:00", inbound: 226, outbound: 9 },
-  { time: "15:00", inbound: 191, outbound: 7 },
-  { time: "16:00", inbound: 177, outbound: 5 },
-  { time: "17:00", inbound: 134, outbound: 4 },
-  { time: "18:00", inbound: 132, outbound: 6 },
-  { time: "19:00", inbound: 130, outbound: 8 },
-  { time: "20:00", inbound: 104, outbound: 11 },
-  { time: "21:00", inbound: 88, outbound: 9 },
-  { time: "22:00", inbound: 89, outbound: 7 },
-  { time: "23:00", inbound: 111, outbound: 5 },
-];
-
-// --- 7-Day Blocked Connections (daily totals) ---
-export const blockedConnections7d = [
-  { day: "Feb 22", inbound: 4821, outbound: 312 },
-  { day: "Feb 23", inbound: 5102, outbound: 287 },
-  { day: "Feb 24", inbound: 4956, outbound: 341 },
-  { day: "Feb 25", inbound: 5234, outbound: 298 },
-  { day: "Feb 26", inbound: 4789, outbound: 276 },
-  { day: "Feb 27", inbound: 5432, outbound: 356 },
-  { day: "Feb 28", inbound: 5198, outbound: 286 },
-];
+// NOTE: No hourly/daily timeline data — Skynet stats.js only provides totals.
+// The BlockedConnectionsChart now shows an honest inbound vs outbound bar comparison.
 
 // --- Top Inbound Port Hits ---
 export const inboundPortHits = [
@@ -304,14 +268,15 @@ export const countryDistribution = [
   { country: "Others", code: "XX", blocks: 3264, percentage: 6.8 },
 ];
 
-// --- Connection Types (for pie chart) ---
+// --- Port Hit Distribution (for pie chart) ---
+// Uses honest service names derived from port numbers, NOT fabricated attack labels.
 export const connectionTypes = [
-  { name: "Telnet Exploit", value: 15234, color: "oklch(0.628 0.258 29.234)" },
-  { name: "SSH Brute Force", value: 12456, color: "oklch(0.769 0.108 85.805)" },
-  { name: "Port Scan", value: 8765, color: "oklch(0.7 0.15 200)" },
-  { name: "SMB Exploit", value: 5432, color: "oklch(0.723 0.219 149.579)" },
-  { name: "HTTP Flood", value: 3210, color: "oklch(0.769 0.188 70.08)" },
-  { name: "Other", value: 2891, color: "oklch(0.65 0.01 260)" },
+  { name: "Telnet (23)", value: 12847 },
+  { name: "SSH (22)", value: 8934 },
+  { name: "SMB (445)", value: 6721 },
+  { name: "RDP (3389)", value: 4523 },
+  { name: "HTTP (80)", value: 3891 },
+  { name: "Other", value: 9072 },
 ];
 
 // Chart color palette

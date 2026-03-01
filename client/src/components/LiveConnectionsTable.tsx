@@ -1,21 +1,23 @@
 /**
  * LiveConnectionsTable — Recent blocked connections (Inbound/Outbound/HTTP)
  * Design: Glass Cockpit — monospace IPs, severity-coded, tabbed interface
- * Accepts data via props; no direct sample data import.
+ * 
+ * Uses the actual SkynetConnection shape from the parser:
+ *   { ip, banReason, alienVaultUrl, country, associatedDomains }
+ * The original Skynet stats.js stores per-connection data in these fields,
+ * NOT in srcIP/dstIP/protocol/timestamp format.
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Globe } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Globe, ExternalLink } from "lucide-react";
 
 export interface ConnectionEntry {
-  timestamp: string;
-  srcIP: string;
-  srcPort: number;
-  dstIP: string;
-  dstPort: number;
-  protocol: string;
-  reason: string;
+  ip: string;
+  banReason: string;
+  alienVaultUrl: string;
+  country: string;
+  associatedDomains: string[];
 }
 
 interface LiveConnectionsTableProps {
@@ -79,11 +81,11 @@ export function LiveConnectionsTable({
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/30" style={{ background: "oklch(0.1 0.005 260 / 60%)" }}>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Time</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Source</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Destination</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Proto</th>
-              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Reason</th>
+              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">IP Address</th>
+              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Country</th>
+              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Ban Reason</th>
+              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Domains</th>
+              <th className="text-left px-3 py-2 font-medium text-muted-foreground uppercase tracking-wider text-[10px]">Intel</th>
             </tr>
           </thead>
           <tbody>
@@ -96,27 +98,43 @@ export function LiveConnectionsTable({
             ) : (
               currentTab.data.map((conn, i) => (
                 <motion.tr
-                  key={`${conn.timestamp}-${i}`}
+                  key={`${conn.ip}-${i}`}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03 }}
                   className="border-b border-border/10 hover:bg-accent/30 transition-colors"
                 >
-                  <td className="px-3 py-2 font-mono text-muted-foreground tabular-nums whitespace-nowrap">
-                    {conn.timestamp}
-                  </td>
                   <td className="px-3 py-2 font-mono text-foreground tabular-nums whitespace-nowrap">
-                    {conn.srcIP}<span className="text-muted-foreground">:{conn.srcPort}</span>
+                    {conn.ip}
                   </td>
-                  <td className="px-3 py-2 font-mono text-foreground tabular-nums whitespace-nowrap">
-                    {conn.dstIP}<span className="text-muted-foreground">:{conn.dstPort}</span>
+                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                    {conn.country || "—"}
                   </td>
                   <td className="px-3 py-2">
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground">
-                      {conn.protocol}
+                      {conn.banReason || "*"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gold font-medium">{conn.reason}</td>
+                  <td className="px-3 py-2 text-muted-foreground max-w-[200px] truncate" title={conn.associatedDomains.join(", ")}>
+                    {conn.associatedDomains.length > 0
+                      ? conn.associatedDomains.slice(0, 2).join(", ") + (conn.associatedDomains.length > 2 ? ` +${conn.associatedDomains.length - 2}` : "")
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    {conn.alienVaultUrl ? (
+                      <a
+                        href={conn.alienVaultUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gold hover:text-gold/80 transition-colors inline-flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span className="text-[10px]">OTX</span>
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                 </motion.tr>
               ))
             )}
