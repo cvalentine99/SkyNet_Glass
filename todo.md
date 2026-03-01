@@ -202,3 +202,40 @@
 ### Tests
 - [x] Write vitest tests for syslog parser (48 tests covering parsing, filtering, summarizing)
 - [x] Verify all tests pass (126 total tests, 6 test files)
+
+## Phase 13: Ipset Browser, Log Export, GeoIP Enrichment
+
+### Feature 1 — Active Ipset Browser
+- [x] Research Skynet ipset commands (ipset save format, skynet.ipset file)
+- [x] Build backend fetcher (fetchIpsetData) to retrieve ipset contents from router
+- [x] Build parser (skynet-ipset-parser.ts) for ipset save format (IP, CIDR, timeout, comment, category)
+- [x] Add tRPC routes: skynet.getBlacklist, skynet.getWhitelist with filtering
+- [x] Create /ipsets page with tabbed view (Ban List / Whitelist)
+- [x] Add search/filter: address search, category dropdown, comment search, type filter (IP/range/all)
+- [x] Add entry count, limit to 2000 entries for performance
+- [x] Add "Ipsets" tab to sidebar navigation (shortcut 7)
+- [x] Ultrawide-optimized 2-column layout (table + summary sidebar)
+- [x] Category-colored badges, unban/remove actions per entry
+- [x] Summary sidebar: category breakdown, set breakdown, IP/range counts
+
+### Feature 2 — Log Export (CSV/JSON)
+- [x] Add CSV export function for filtered log entries (with GeoIP country)
+- [x] Add JSON export function for filtered log entries (with full GeoIP data)
+- [x] Add CSV/JSON export buttons to Logs page header
+- [x] Include all visible columns plus GeoIP enrichment
+- [x] Add CSV/JSON export buttons to Ipsets page header
+
+### Feature 3 — GeoIP Enrichment
+- [x] Research free GeoIP API (ip-api.com batch endpoint, 15 req/min, 100 IPs/batch)
+- [x] Build server-side GeoIP resolver (geoip-resolver.ts) with 24h in-memory cache
+- [x] Add tRPC route: skynet.resolveGeoIP for batch IP resolution
+- [x] Add country code, country name, city, ISP, ASN to resolved IPs
+- [x] Add flag emoji + country code column to log table
+- [x] Add country column to ipset browser entries
+- [x] Add GeoIP info to log entry detail expansion (country, city, ISP, ASN)
+- [x] Private IP detection returns "Local Network" with house emoji
+
+### Tests
+- [x] Write vitest tests for ipset parser (parseIpsetLines, filterIpsetEntries, summarizeIpsetEntries)
+- [x] Write vitest tests for GeoIP resolver (getFlagEmoji, getCacheSize)
+- [x] Verify all tests pass (157 total tests, 7 test files)

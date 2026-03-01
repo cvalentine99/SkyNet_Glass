@@ -36,6 +36,7 @@ import {
   Shield,
   Globe,
   Wifi,
+  Download,
 } from "lucide-react";
 
 type Direction = "INBOUND" | "OUTBOUND" | "INVALID" | "IOT" | "ALL";
@@ -146,6 +147,55 @@ export default function Logs() {
   const error = data?.error ?? null;
   const rawLineCount = data?.rawLineCount ?? 0;
 
+  // ─── GeoIP for visible entries ──────────────────────────
+  const uniqueSrcIps = useMemo(() => {
+    const ips = new Set<string>();
+    entries.forEach(e => {
+      if (e.srcIp && !e.srcIp.startsWith("10.") && !e.srcIp.startsWith("192.168.") && !e.srcIp.startsWith("172.")) {
+        ips.add(e.srcIp);
+      }
+    });
+    return Array.from(ips).slice(0, 100);
+  }, [entries]);
+
+  const geoQuery = trpc.skynet.resolveGeoIP.useQuery(
+    { ips: uniqueSrcIps },
+    { enabled: uniqueSrcIps.length > 0, refetchOnWindowFocus: false, staleTime: 60000 }
+  );
+  const geoMap = geoQuery.data?.geoMap ?? {};
+
+  // ─── Export Helpers ─────────────────────────────────────
+  const handleExportCSV = useCallback(() => {
+    const header = "Direction,Timestamp,Source IP,Destination IP,Protocol,Src Port,Dst Port,TTL,Length,TCP Flags,Country\n";
+    const rows = entries.map(e => {
+      const geo = geoMap[e.srcIp];
+      return `"${e.direction}","${e.timestamp}","${e.srcIp}","${e.dstIp}","${e.protocol}",${e.srcPort},${e.dstPort},${e.ttl},${e.length},"${e.tcpFlags.join(" ")}","${geo?.country || ""}"`.trim();
+    }).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `skynet-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${entries.length} log entries as CSV`);
+  }, [entries, geoMap]);
+
+  const handleExportJSON = useCallback(() => {
+    const enriched = entries.map(e => ({
+      ...e,
+      geo: geoMap[e.srcIp] || null,
+    }));
+    const blob = new Blob([JSON.stringify(enriched, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `skynet-logs-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${entries.length} log entries as JSON`);
+  }, [entries, geoMap]);
+
   return (
     <div className="min-h-screen" style={{ background: "oklch(0.05 0 0)" }}>
       <Sidebar />
@@ -193,6 +243,28 @@ export default function Logs() {
                 </select>
               )}
             </div>
+
+            {/* Export buttons */}
+            <button
+              onClick={handleExportCSV}
+              disabled={entries.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium
+                bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50
+                border border-transparent disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+            <button
+              onClick={handleExportJSON}
+              disabled={entries.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium
+                bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50
+                border border-transparent disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              JSON
+            </button>
 
             {/* Refresh button */}
             <button
@@ -419,10 +491,11 @@ export default function Logs() {
               {!isLoading && entries.length > 0 && (
                 <div className="overflow-x-auto">
                   {/* Column Headers */}
-                  <div className="grid grid-cols-[60px_70px_140px_140px_60px_80px_80px_1fr] gap-2 px-4 py-2 border-b border-border/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card/80 backdrop-blur-sm min-w-[800px]">
+                  <div className="grid grid-cols-[60px_70px_140px_60px_140px_60px_80px_80px_1fr] gap-2 px-4 py-2 border-b border-border/50 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card/80 backdrop-blur-sm min-w-[900px]">
                     <div>Dir</div>
                     <div>Time</div>
                     <div>Source IP</div>
+                    <div>Country</div>
                     <div>Destination IP</div>
                     <div>Proto</div>
                     <div>Src Port</div>
@@ -443,8 +516,8 @@ export default function Logs() {
                           <button
                             onClick={() => setExpandedRow(isExpanded ? null : idx)}
                             className={cn(
-                              "grid grid-cols-[60px_70px_140px_140px_60px_80px_80px_1fr] gap-2 px-4 py-2.5 w-full text-left",
-                              "border-b border-border/30 hover:bg-muted/20 transition-colors min-w-[800px]",
+                              "grid grid-cols-[60px_70px_140px_60px_140px_60px_80px_80px_1fr] gap-2 px-4 py-2.5 w-full text-left",
+                              "border-b border-border/30 hover:bg-muted/20 transition-colors min-w-[900px]",
                               isExpanded && "bg-muted/20"
                             )}
                           >
@@ -472,6 +545,18 @@ export default function Logs() {
                             {/* Source IP */}
                             <div className="text-xs font-mono text-foreground truncate">
                               {entry.srcIp}
+                            </div>
+
+                            {/* Country (GeoIP) */}
+                            <div className="flex items-center gap-1">
+                              {geoMap[entry.srcIp] ? (
+                                <>
+                                  <span className="text-sm leading-none">{(geoMap[entry.srcIp] as any).flag}</span>
+                                  <span className="text-[10px] text-muted-foreground">{(geoMap[entry.srcIp] as any).countryCode}</span>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/40">—</span>
+                              )}
                             </div>
 
                             {/* Destination IP */}
@@ -553,6 +638,34 @@ export default function Logs() {
                                       {entry.tcpFlags.length > 0 ? entry.tcpFlags.join(", ") : "—"}
                                     </span>
                                   </div>
+                                  {geoMap[entry.srcIp] && (
+                                    <>
+                                      <div>
+                                        <span className="text-muted-foreground block mb-0.5">Country</span>
+                                        <span className="font-mono text-foreground">
+                                          {(geoMap[entry.srcIp] as any).flag} {(geoMap[entry.srcIp] as any).country}
+                                        </span>
+                                      </div>
+                                      {(geoMap[entry.srcIp] as any).city && (
+                                        <div>
+                                          <span className="text-muted-foreground block mb-0.5">City</span>
+                                          <span className="font-mono text-foreground">{(geoMap[entry.srcIp] as any).city}</span>
+                                        </div>
+                                      )}
+                                      {(geoMap[entry.srcIp] as any).isp && (
+                                        <div>
+                                          <span className="text-muted-foreground block mb-0.5">ISP</span>
+                                          <span className="font-mono text-foreground">{(geoMap[entry.srcIp] as any).isp}</span>
+                                        </div>
+                                      )}
+                                      {(geoMap[entry.srcIp] as any).as && (
+                                        <div>
+                                          <span className="text-muted-foreground block mb-0.5">ASN</span>
+                                          <span className="font-mono text-foreground text-[11px]">{(geoMap[entry.srcIp] as any).as}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
                                   <div>
                                     <span className="text-muted-foreground block mb-0.5">Hostname</span>
                                     <span className="font-mono text-foreground">{entry.hostname || "—"}</span>

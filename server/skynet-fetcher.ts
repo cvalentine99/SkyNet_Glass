@@ -562,6 +562,87 @@ export async function fetchSyslog(options?: {
   }
 }
 
+// ─── Fetch Ipset Data ──────────────────────────────────────
+
+/**
+ * Fetch ipset data from the router.
+ *
+ * Reads the skynet.ipset file which contains all ipset save data.
+ * Optionally filters by set name (e.g. Skynet-Blacklist).
+ */
+export async function fetchIpsetData(options?: {
+  setName?: string;
+}): Promise<{
+  raw: string;
+  error: string | null;
+}> {
+  try {
+    const config = await getSkynetConfig();
+    if (!config) {
+      return { raw: "", error: "No router configuration found" };
+    }
+
+    const baseUrl = `${config.routerProtocol}://${config.routerAddress}:${config.routerPort}`;
+    const authHeaders = buildAuthHeaders(config.username, config.password);
+    const httpsAgent = await getHttpsAgent(config.routerProtocol);
+
+    // Build the command to read ipset data
+    // The skynet.ipset file is at /opt/share/skynet/skynet.ipset (or /jffs/addons/shared-whitelists/shared-whitelist)
+    // For live data, use: ipset save <setname>
+    let cmd: string;
+    if (options?.setName) {
+      // Filter for specific set
+      cmd = `grep '^add ${options.setName} ' /opt/share/skynet/skynet.ipset 2>/dev/null || ipset save ${options.setName} 2>/dev/null`;
+    } else {
+      // Get all sets
+      cmd = `cat /opt/share/skynet/skynet.ipset 2>/dev/null || { ipset save Skynet-Blacklist; ipset save Skynet-BlockedRanges; ipset save Skynet-Whitelist; ipset save Skynet-WhitelistDomains; } 2>/dev/null`;
+    }
+
+    await axios.post(
+      `${baseUrl}/apply.cgi`,
+      new URLSearchParams({
+        current_page: "Main_Analysis_Content.asp",
+        next_page: "Main_Analysis_Content.asp",
+        action_mode: " Refresh ",
+        SystemCmd: cmd,
+      }).toString(),
+      {
+        timeout: 30000,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: `${baseUrl}/Main_Analysis_Content.asp`,
+          ...authHeaders,
+        },
+        httpsAgent,
+      }
+    );
+
+    // Wait a moment for large ipset files
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Fetch the command output
+    const outputResponse = await axios.get(`${baseUrl}/cmdRet_check.htm`, {
+      timeout: 15000,
+      headers: {
+        Referer: `${baseUrl}/Main_Analysis_Content.asp`,
+        ...authHeaders,
+      },
+      httpsAgent,
+    });
+
+    let raw = outputResponse.data as string;
+    raw = raw.replace(/<[^>]+>/g, "").trim();
+
+    return { raw, error: null };
+  } catch (err: any) {
+    const errorMsg =
+      err.response?.status === 401 || err.response?.status === 403
+        ? "Authentication failed — check router credentials"
+        : `Failed to fetch ipset data: ${err.message}`;
+    return { raw: "", error: errorMsg };
+  }
+}
+
 // ─── Polling Manager ────────────────────────────────────────
 
 export async function startPolling(): Promise<void> {

@@ -26,7 +26,15 @@ import {
   removeWhitelistDomain,
   refreshWhitelist,
   fetchSyslog,
+  fetchIpsetData,
 } from "./skynet-fetcher";
+import {
+  parseIpsetLines,
+  filterIpsetEntries,
+  summarizeIpsetEntries,
+  type IpsetFilter,
+} from "./skynet-ipset-parser";
+import { resolveIPs, getCacheSize, type GeoInfo } from "./geoip-resolver";
 import {
   parseSyslogLines,
   filterLogEntries,
@@ -392,6 +400,122 @@ export const appRouter = router({
           summary,
           error: null,
           rawLineCount: entries.length,
+        };
+      }),
+
+    // ─── Ipset Browser ─────────────────────────────────────
+
+    /**
+     * Fetch and parse ipset data from the router.
+     * Returns blacklist entries (Skynet-Blacklist + Skynet-BlockedRanges).
+     *
+     * API command: grep '^add Skynet-Blacklist\|Skynet-BlockedRanges ' /opt/share/skynet/skynet.ipset
+     * Executed via: POST /apply.cgi { SystemCmd: "..." }
+     * Output read from: GET /cmdRet_check.htm
+     */
+    getBlacklist: publicProcedure
+      .input(
+        z.object({
+          addressSearch: z.string().optional(),
+          category: z.string().optional(),
+          commentSearch: z.string().optional(),
+          type: z.enum(["ip", "range", "all"]).default("all"),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        // Fetch blacklist + blocked ranges
+        const result = await fetchIpsetData();
+
+        if (result.error) {
+          return { entries: [], summary: null, error: result.error };
+        }
+
+        // Parse only blacklist/blocked ranges
+        const blacklistEntries = parseIpsetLines(result.raw, "Skynet-Blacklist");
+        const rangeEntries = parseIpsetLines(result.raw, "Skynet-BlockedRanges");
+        const allEntries = [...blacklistEntries, ...rangeEntries];
+
+        // Apply filters
+        const filter: IpsetFilter = {
+          addressSearch: input?.addressSearch || undefined,
+          category: input?.category || undefined,
+          commentSearch: input?.commentSearch || undefined,
+          type: input?.type || "all",
+        };
+
+        const filtered = filterIpsetEntries(allEntries, filter);
+        const summary = summarizeIpsetEntries(allEntries);
+
+        return {
+          entries: filtered.slice(0, 2000),
+          summary,
+          error: null,
+        };
+      }),
+
+    /**
+     * Fetch and parse whitelist data from the router.
+     * Returns whitelist entries (Skynet-Whitelist + Skynet-WhitelistDomains).
+     */
+    getWhitelist: publicProcedure
+      .input(
+        z.object({
+          addressSearch: z.string().optional(),
+          category: z.string().optional(),
+          commentSearch: z.string().optional(),
+          type: z.enum(["ip", "range", "all"]).default("all"),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        const result = await fetchIpsetData();
+
+        if (result.error) {
+          return { entries: [], summary: null, error: result.error };
+        }
+
+        const wlEntries = parseIpsetLines(result.raw, "Skynet-Whitelist");
+        const wlDomainEntries = parseIpsetLines(result.raw, "Skynet-WhitelistDomains");
+        const allEntries = [...wlEntries, ...wlDomainEntries];
+
+        const filter: IpsetFilter = {
+          addressSearch: input?.addressSearch || undefined,
+          category: input?.category || undefined,
+          commentSearch: input?.commentSearch || undefined,
+          type: input?.type || "all",
+        };
+
+        const filtered = filterIpsetEntries(allEntries, filter);
+        const summary = summarizeIpsetEntries(allEntries);
+
+        return {
+          entries: filtered.slice(0, 2000),
+          summary,
+          error: null,
+        };
+      }),
+
+    // ─── GeoIP Enrichment ──────────────────────────────────
+
+    /**
+     * Resolve GeoIP data for a list of IP addresses.
+     * Uses ip-api.com batch endpoint with server-side caching.
+     * Returns a map of IP → { countryCode, country, city, isp, org, as, asname, flag }.
+     */
+    resolveGeoIP: publicProcedure
+      .input(
+        z.object({
+          ips: z.array(z.string()).max(200),
+        })
+      )
+      .query(async ({ input }) => {
+        const results = await resolveIPs(input.ips);
+        const geoMap: Record<string, GeoInfo> = {};
+        results.forEach((geo, ip) => {
+          geoMap[ip] = geo;
+        });
+        return {
+          geoMap,
+          cacheSize: getCacheSize(),
         };
       }),
 
