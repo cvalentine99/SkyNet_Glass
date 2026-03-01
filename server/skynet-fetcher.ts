@@ -7,7 +7,7 @@
 
 import axios from "axios";
 import { createHash } from "crypto";
-import { parseSkynetStats, type SkynetStats } from "./skynet-parser";
+import { parseSkynetStats, validateStatsJs, type SkynetStats } from "./skynet-parser";
 import {
   getSkynetConfig,
   getCachedStats,
@@ -81,7 +81,14 @@ export async function fetchStatsFromRouter(): Promise<{
       },
     });
 
-    const rawJs = response.data as string;
+    const rawJs = typeof response.data === "string" ? response.data : String(response.data ?? "");
+
+    // Validate the content before parsing
+    const validationError = validateStatsJs(rawJs);
+    if (validationError) {
+      lastFetchError = validationError;
+      return { stats: null, error: validationError, changed: false };
+    }
 
     // Check if content changed
     const hash = createHash("md5").update(rawJs).digest("hex");

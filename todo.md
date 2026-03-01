@@ -528,4 +528,15 @@
 - [x] Improve troubleshooting: numbered diagnostic order, #1 is "tables exist", not connection
 - [x] Add pre-flight checklist (4c) — .env, build, tables, port all verified before smoke test
 - [x] Added MySQL "Access denied" section: verify basics before trying ALTER USER
+- [x] Push to GitHub
+
+## Phase 26: Fix Skynet stats.js Parser — Invalid File Format
+
+- [x] Downloaded Skynet firewall.sh, reverse-engineered WriteStats_ToJS and WriteData_ToJS
+- [x] Root cause: extractArray regex used 's' (dotall) flag — on empty .unshift(''), it matched across newlines capturing garbage
+- [x] Fixed extractArray: removed 's' flag (unshift is always single-line), changed (.+?) to (.*?) for empty strings
+- [x] Added validateStatsJs() with specific errors: empty, HTML login page, JSON, random JS, missing KPIs
+- [x] Integrated validation into fetchStatsFromRouter and testConnection routes
+- [x] Rewrote skynet-parser.test.ts with realistic tab-indented format from firewall.sh (26 tests)
+- [x] All 300 tests pass across 12 test files, 0 TypeScript errors
 - [ ] Push to GitHub

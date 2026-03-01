@@ -7,6 +7,9 @@
  *   - var arrays populated via .unshift() (chart/table data)
  *
  * Output: A clean JSON object matching our dashboard's data model.
+ *
+ * Reference: WriteStats_ToJS and WriteData_ToJS in Skynet's firewall.sh
+ * https://github.com/Adamm00/IPSet_ASUS/blob/master/firewall.sh
  */
 
 export interface SkynetStats {
@@ -45,10 +48,56 @@ export interface SkynetTopBlock {
 }
 
 /**
+ * Validate that the raw content looks like a Skynet stats.js file.
+ * Returns null if valid, or an error message describing what's wrong.
+ */
+export function validateStatsJs(raw: string): string | null {
+  if (!raw || raw.trim().length === 0) {
+    return "Empty response — the stats.js file has no content. Run 'Update Stats' on the router first.";
+  }
+
+  // Check if it's HTML (login page, error page, etc.)
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<head")) {
+    return "Received an HTML page instead of stats.js — this usually means the router returned a login page. Check your router credentials (username/password) in Settings.";
+  }
+
+  // Check if it's JSON (some routers return JSON errors)
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    return "Received JSON instead of stats.js — the router may have returned an error response. Check the stats path in Settings (default: /ext/skynet/stats.js).";
+  }
+
+  // Check for at least one Skynet signature
+  const hasSetFunction = /function\s+Set(BLCount1|BLCount2|Hits1|Hits2|StatsDate|StatsSize)\s*\(/i.test(raw);
+  const hasUnshift = /\.unshift\(/i.test(raw);
+  const hasInnerHTML = /\.innerHTML\s*=/i.test(raw);
+
+  if (!hasSetFunction && !hasUnshift && !hasInnerHTML) {
+    // Show a preview of what we got
+    const preview = raw.slice(0, 200).replace(/\n/g, "\\n");
+    return `File was fetched but doesn't appear to be a valid Skynet stats.js. Expected SetXxx() functions and .unshift() arrays. First 200 chars: "${preview}"`;
+  }
+
+  if (!hasSetFunction) {
+    return "File contains JavaScript but is missing Skynet KPI functions (SetBLCount1, SetHits1, etc.). This may be a different version of Skynet or the stats haven't been generated yet.";
+  }
+
+  return null; // Valid
+}
+
+/**
  * Extract a KPI value from a SetXxx() function.
- * Pattern: document.getElementById("xxx").innerHTML = "VALUE"
+ *
+ * Skynet's WriteStats_ToJS produces:
+ *   function SetBLCount1() {
+ *   	document.getElementById("blcount1").innerHTML = "12345"
+ *   }
+ *
+ * Note: tab indentation, no semicolons on the innerHTML line.
  */
 function extractKpiValue(js: string, funcName: string): string {
+  // Match the function body and extract the innerHTML value
+  // Use [^}]* to match everything inside the function body (including tabs/newlines)
   const regex = new RegExp(
     `function\\s+${funcName}\\s*\\(\\)\\s*\\{[^}]*innerHTML\\s*=\\s*"([^"]*)"`,
     "s"
@@ -58,20 +107,36 @@ function extractKpiValue(js: string, funcName: string): string {
 }
 
 /**
- * Extract an array from var XXX; XXX = []; XXX.unshift('a','b','c');
- * Returns the array of string values.
+ * Extract an array from Skynet's WriteData_ToJS output.
+ *
+ * Format produced by the shell script:
+ *   var DataInPortHits;
+ *   DataInPortHits = [];
+ *   DataInPortHits.unshift('1234', '567', '89');
+ *
+ * Key insight: values are single-quoted and separated by "', '"
+ * Empty sections produce: VarName.unshift('');
+ *
+ * IMPORTANT: The regex must NOT use the 's' (dotall) flag, because
+ * with dotall, a non-greedy (.+?) on an empty value like .unshift('')
+ * would match across newlines to the next '); occurrence, capturing garbage.
+ * Since the .unshift() call is always on a single line, we don't need dotall.
  */
 function extractArray(js: string, varName: string): string[] {
-  // Match: VarName.unshift('val1', 'val2', ...)
-  // Use a greedy match up to the closing ');
+  // Match the .unshift() call on a SINGLE line (no 's' flag)
+  // This prevents the regex from spanning across multiple variable declarations
   const regex = new RegExp(
-    `${varName}\\.unshift\\('(.+?)'\\);`,
-    "s"
+    `${varName}\\.unshift\\('(.*?)'\\);`
   );
   const match = js.match(regex);
   if (!match?.[1]) return [];
+
+  // Empty data: Skynet writes .unshift('') for empty sections
+  const inner = match[1];
+  if (inner === "" || inner.trim() === "") return [];
+
   // Split on "', '" (the values are single-quoted, separated by comma+space)
-  return match[1].split("', '").map(s => s.trim());
+  return inner.split("', '").map(s => s.trim());
 }
 
 /**
@@ -185,6 +250,9 @@ function parseTopDevices(
 
 /**
  * Main parser: takes the raw stats.js content and returns structured data.
+ *
+ * Call validateStatsJs() first to check if the content is valid.
+ * This function will still return a best-effort parse even for partial data.
  */
 export function parseSkynetStats(js: string): SkynetStats {
   // KPI values

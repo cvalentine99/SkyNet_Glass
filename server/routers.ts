@@ -56,6 +56,7 @@ import {
   type IpsetFilter,
 } from "./skynet-ipset-parser";
 import { resolveIPs, getCacheSize, type GeoInfo } from "./geoip-resolver";
+import { validateStatsJs } from "./skynet-parser";
 import {
   parseSyslogLines,
   filterLogEntries,
@@ -1117,19 +1118,15 @@ export const appRouter = router({
             },
           });
 
-          const content = response.data as string;
-          const isValid =
-            content.includes("SetBLCount1") ||
-            content.includes("DataInPortHits") ||
-            content.includes("SetHits1");
+          const content = typeof response.data === "string" ? response.data : String(response.data ?? "");
+          const validationError = validateStatsJs(content);
+          const isValid = validationError === null;
 
           return {
             success: true,
             isValidStatsFile: isValid,
             contentLength: content.length,
-            error: isValid
-              ? null
-              : "File was fetched but doesn't appear to be a valid Skynet stats.js",
+            error: validationError,
           };
         } catch (err: any) {
           return {
