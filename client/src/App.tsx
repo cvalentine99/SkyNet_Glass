@@ -10,6 +10,7 @@ import Manage from "./pages/Manage";
 import Logs from "./pages/Logs";
 import Ipsets from "./pages/Ipsets";
 import ThreatMap from "./pages/ThreatMap";
+import DnsSinkhole from "./pages/DnsSinkhole";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path={"/logs"} component={Logs} />
       <Route path={"/ipsets"} component={Ipsets} />
       <Route path={"/threatmap"} component={ThreatMap} />
+      <Route path={"/dns"} component={DnsSinkhole} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

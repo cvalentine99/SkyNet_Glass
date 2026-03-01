@@ -375,3 +375,39 @@
 - [x] All 202 existing tests pass (9 test files)
 - [x] 0 TypeScript errors
 - [x] 0 console errors
+
+## Phase 18: DNS Sinkhole Log Viewer
+
+### Research
+- [x] Studied Skynet DNS sinkhole implementation — dnsmasq log-queries, config/NXDOMAIN/0.0.0.0 sinkhole patterns
+- [x] Identified dnsmasq log format: query[TYPE] DOMAIN from CLIENT_IP, config DOMAIN is NXDOMAIN/0.0.0.0
+- [x] Understood DHCP lease format for device name resolution: EPOCH MAC IP HOSTNAME CLIENT_ID
+
+### Backend — DNS Sinkhole Parser & Routes
+- [x] Built skynet-dns-parser.ts with parseDnsmasqLine, parseDnsmasqLines, extractSinkholedRequests, filterSinkholedRequests, summarizeSinkholedRequests
+- [x] Built parseDhcpLeases for IP→device name mapping from dnsmasq.leases
+- [x] Added tRPC routes: skynet.getDnsSinkhole (fetches dnsmasq log + DHCP leases, parses and filters)
+- [x] Added tRPC route: skynet.getDevices (returns DHCP lease list for device dropdown)
+- [x] Support filtering by device IP, domain substring, query type (A/AAAA/CNAME/PTR/MX/TXT)
+- [x] Device-level aggregation: top offending devices with hostname + blocked count
+- [x] Domain-level aggregation: top blocked domains with count
+- [x] Query type breakdown in summary
+
+### Frontend — DNS Sinkhole Page
+- [x] Created /dns route with DNS Sinkhole viewer page
+- [x] Added "DNS Sinkhole" tab to sidebar navigation (shortcut 8, Settings moved to 9)
+- [x] Built sinkholed requests table with columns: TIME, DOMAIN, DEVICE, CLIENT IP, TYPE, RESPONSE
+- [x] Filter controls: device dropdown (populated from DHCP leases), domain search, query type dropdown, max lines
+- [x] Right sidebar: Sinkhole Summary (4 KPI cards), Top Blocked Domains, Top Offending Devices, Query Types
+- [x] Clickable summary items to auto-filter (click device → filter by device, click domain → filter by domain)
+- [x] Auto-refresh toggle with configurable interval (5s/10s/30s/60s)
+- [x] CSV and JSON export buttons
+- [x] Ultrawide-optimized 2-column layout (table + summary sidebar at 2xl breakpoint)
+- [x] Color-coded response badges (red for NXDOMAIN, orange for 0.0.0.0)
+- [x] Empty state with shield icon and helpful message
+
+### Tests
+- [x] Wrote 42 vitest tests for DNS parser (DHCP leases, line parsing, sinkhole extraction, filtering, summarization, realistic logs)
+- [x] All 244 tests pass across 10 test files
+- [x] 0 TypeScript errors, 0 console errors
+- [x] 37 tRPC routes verified intact

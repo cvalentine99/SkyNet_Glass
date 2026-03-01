@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   ScrollText,
   Database,
+  Radar,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,7 +45,8 @@ const navItems: SidebarItem[] = [
   { icon: ShieldAlert, label: "Manage", id: "manage", route: "/manage", shortcut: "5" },
   { icon: ScrollText, label: "Logs", id: "logs", route: "/logs", shortcut: "6" },
   { icon: Database, label: "Ipsets", id: "ipsets", route: "/ipsets", shortcut: "7" },
-  { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "8" },
+  { icon: Radar, label: "DNS Sinkhole", id: "dns", route: "/dns", shortcut: "8" },
+  { icon: Settings, label: "Settings", id: "settings", route: "/settings", shortcut: "9" },
 ];
 
 // Section IDs that the scroll-spy observes
@@ -126,11 +128,13 @@ export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarP
           ? "manage"
           : location === "/logs"
             ? "logs"
-            : location === "/ipsets"
-              ? "ipsets"
-              : location === "/threatmap"
-                ? "threats"
-                : propActiveSection ?? "dashboard";
+              : location === "/ipsets"
+                ? "ipsets"
+                : location === "/dns"
+                  ? "dns"
+                  : location === "/threatmap"
+                    ? "threats"
+                    : propActiveSection ?? "dashboard";
 
   const handleClick = useCallback(
     (item: SidebarItem) => {

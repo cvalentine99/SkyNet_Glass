@@ -36,6 +36,8 @@ import {
   fetchSyslog,
   fetchIpsetData,
   bulkBanImport,
+  fetchDnsmasqLog,
+  fetchDhcpLeases,
 } from "./skynet-fetcher";
 import {
   parseIpsetLines,
@@ -50,6 +52,12 @@ import {
   summarizeLogEntries,
   type LogFilter,
 } from "./skynet-syslog-parser";
+import {
+  parseDhcpLeases,
+  extractSinkholedRequests,
+  filterSinkholedRequests,
+  summarizeSinkholedRequests,
+} from "./skynet-dns-parser";
 
 export const appRouter = router({
   system: systemRouter,
@@ -621,6 +629,96 @@ export const appRouter = router({
         const history = await getAlertHistory(input?.limit ?? 50);
         return history;
       }),
+
+    // ─── DNS Sinkhole ──────────────────────────────────────
+
+    /**
+     * Fetch and parse dnsmasq logs to identify sinkholed DNS requests.
+     * Correlates query + config lines to show which devices tried to reach blocked domains.
+     */
+    getDnsSinkhole: publicProcedure
+      .input(
+        z.object({
+          maxLines: z.number().int().min(100).max(5000).default(1000),
+          deviceIp: z.string().optional(),
+          domain: z.string().optional(),
+          queryType: z.enum(["ALL", "A", "AAAA", "CNAME", "PTR", "MX", "TXT", "SRV", "SOA"]).default("ALL"),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        // Fetch dnsmasq log and DHCP leases in parallel
+        const [dnsResult, leaseResult] = await Promise.all([
+          fetchDnsmasqLog(input?.maxLines ?? 1000),
+          fetchDhcpLeases(),
+        ]);
+
+        if (dnsResult.error && !dnsResult.raw) {
+          return {
+            entries: [],
+            summary: null,
+            devices: [],
+            error: dnsResult.error,
+          };
+        }
+
+        // Parse DHCP leases for device name resolution
+        const leaseMap = leaseResult.raw
+          ? parseDhcpLeases(leaseResult.raw)
+          : undefined;
+
+        // Extract sinkholed requests with device correlation
+        const sinkholed = extractSinkholedRequests(dnsResult.raw, leaseMap);
+
+        // Apply filters
+        const filtered = filterSinkholedRequests(sinkholed, {
+          deviceIp: input?.deviceIp || undefined,
+          domain: input?.domain || undefined,
+          queryType: input?.queryType || "ALL",
+        });
+
+        // Build summary
+        const summary = summarizeSinkholedRequests(filtered);
+
+        // Build device list from DHCP leases
+        const devices: Array<{ ip: string; hostname: string; mac: string }> = [];
+        if (leaseMap) {
+          Array.from(leaseMap.values()).forEach((lease) => {
+            devices.push({
+              ip: lease.ip,
+              hostname: lease.hostname,
+              mac: lease.mac,
+            });
+          });
+        }
+
+        return {
+          entries: filtered.slice(0, 2000),
+          summary,
+          devices,
+          error: dnsResult.error,
+        };
+      }),
+
+    /**
+     * Fetch DHCP leases to list all known devices on the network.
+     */
+    getDevices: publicProcedure.query(async () => {
+      const result = await fetchDhcpLeases();
+
+      if (result.error) {
+        return { devices: [], error: result.error };
+      }
+
+      const leaseMap = parseDhcpLeases(result.raw);
+      const devices = Array.from(leaseMap.values()).map((lease) => ({
+        ip: lease.ip,
+        hostname: lease.hostname,
+        mac: lease.mac,
+        epoch: lease.epoch,
+      }));
+
+      return { devices, error: null };
+    }),
 
     /** Test connection to the router */
     testConnection: publicProcedure
