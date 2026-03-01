@@ -39,7 +39,7 @@ export type SidebarItem = {
 const navItems: SidebarItem[] = [
   { icon: Shield, label: "Dashboard", id: "dashboard", route: "/", shortcut: "1" },
   { icon: BarChart3, label: "Port Statistics", id: "ports", scrollTo: "section-ports", shortcut: "2" },
-  { icon: Globe, label: "Threat Map", id: "threats", scrollTo: "section-threats", shortcut: "3" },
+  { icon: Globe, label: "Threat Map", id: "threats", route: "/threatmap", shortcut: "3" },
   { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections", shortcut: "4" },
   { icon: ShieldAlert, label: "Manage", id: "manage", route: "/manage", shortcut: "5" },
   { icon: ScrollText, label: "Logs", id: "logs", route: "/logs", shortcut: "6" },
@@ -124,11 +124,13 @@ export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarP
         ? "settings"
         : location === "/manage"
           ? "manage"
-            : location === "/logs"
+          : location === "/logs"
             ? "logs"
             : location === "/ipsets"
               ? "ipsets"
-              : propActiveSection ?? "dashboard";
+              : location === "/threatmap"
+                ? "threats"
+                : propActiveSection ?? "dashboard";
 
   const handleClick = useCallback(
     (item: SidebarItem) => {

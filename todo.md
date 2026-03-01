@@ -239,3 +239,49 @@
 - [x] Write vitest tests for ipset parser (parseIpsetLines, filterIpsetEntries, summarizeIpsetEntries)
 - [x] Write vitest tests for GeoIP resolver (getFlagEmoji, getCacheSize)
 - [x] Verify all tests pass (157 total tests, 7 test files)
+
+## Phase 14: Over-the-Top GeoIP Threat Map
+
+### Research & Design
+- [x] Researched Norse, Kaspersky, Fortinet threat maps for visual inspiration
+- [x] Chose react-globe.gl (Three.js wrapper) for 3D WebGL globe rendering
+- [x] Designed cinematic HUD overlay with glass panels and cyan/dark theme
+
+### 3D Globe Component
+- [x] Built interactive 3D globe with react-globe.gl + Three.js
+- [x] NASA Black Marble night texture with city lights + topology bump map
+- [x] Blue atmosphere glow (atmosphereColor #1a6bff, altitude 0.2)
+- [x] Smooth auto-rotation (0.4 speed) with damping, pause on interaction
+- [x] Country labels for top 15 threat sources with severity coloring
+
+### Attack Visualization
+- [x] Animated dash arcs from attacker countries → target (US center) with severity-gradient colors
+- [x] Arc stroke width and animation speed proportional to threat volume (sqrt scaling)
+- [x] Pulsing concentric rings at attack origin locations (propagation speed scales with intensity)
+- [x] Glowing point markers at all attack source locations
+- [x] Target location has distinct cyan pulsing ring
+- [x] Color-coded by severity: red=CRITICAL (3000+), orange=HIGH (1500+), gold=MEDIUM (500+), green=LOW
+- [x] Arc altitude varies by intensity (0.1–0.5) for visual depth
+
+### HUD Overlay & Stats
+- [x] Left panel: Threat Overview — total blocks, source countries, severity breakdown, 4 mini KPI cards
+- [x] Right panel: Top Threats leaderboard (top 12 countries) — clickable to fly globe to country
+- [x] Bottom ticker: LIVE FEED with scrolling threat entries, severity badges, and legend
+- [x] Top-left: Navigation (back arrow) + title with live/offline status indicator
+- [x] Top-right: Reset view + fullscreen toggle controls
+- [x] Cinematic scan line animation, subtle grid overlay, starfield gradient background
+- [x] Arc hover tooltip showing country name and block count
+- [x] HUD toggle button to show/hide all overlays for clean globe view
+
+### Integration
+- [x] Connected to useSkynetStats hook for country distribution data
+- [x] Uses COUNTRY_CENTROIDS for lat/lon mapping (48 countries)
+- [x] Data auto-refreshes with existing Skynet polling interval
+- [x] Added to sidebar navigation as shortcut 3 (replaced scroll-to with dedicated /threatmap route)
+- [x] Earth textures uploaded to CDN for production deployment
+
+### Tests & Polish
+- [x] All 157 existing tests still pass (no regressions)
+- [x] 0 TypeScript errors, 0 console errors (only deprecation warning from Three.js Clock)
+- [x] Full-screen layout — fills entire viewport with no scrolling
+- [x] Responsive: HUD panels adapt, globe fills available space
