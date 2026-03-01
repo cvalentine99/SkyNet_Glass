@@ -153,11 +153,12 @@ function parseMonitoringDates(dateStr: string): { from: string; to: string } {
 
 /**
  * Parse the log size from the stats size string.
- * Format: "Log Size - (14M)B" or "Log Size - (2.3M)B"
+ * Format: "Log Size - (2.8MB)" or "Log Size - (14MB)"
+ * The parenthesized value already includes the unit suffix.
  */
 function parseLogSize(sizeStr: string): string {
   const match = sizeStr.match(/\(([^)]+)\)/);
-  return match?.[1] ? `${match[1]}B` : sizeStr;
+  return match?.[1] ?? sizeStr;
 }
 
 /**
@@ -231,18 +232,51 @@ function parseTopBlocks(
 
 /**
  * Parse top blocked devices from parallel arrays (hits + label with device name).
+ *
+ * IMPORTANT: Device labels can contain commas (e.g., "Apple, Inc."), which Skynet's
+ * shell script doesn't escape. This means a single device entry like:
+ *   '192.168.50.180 (Apple', ' Inc.)'
+ * gets split into two array elements by our extractArray function.
+ *
+ * We detect this by looking for labels that start with a space or don't contain an IP,
+ * and merge them back with the previous entry.
  */
 function parseTopDevices(
   hits: string[],
   labels: string[]
 ): { hits: number; label: string }[] {
+  // Reassemble labels that were split by commas in device names.
+  // A real label starts with an IP like "192.168.x.x" — fragments don't.
+  // The hits array has one entry per REAL device, but the labels array has
+  // extra entries when device names contain commas (e.g., "Apple, Inc.").
+  // We use a separate hitIdx that only advances for real device entries.
+  const mergedHits: string[] = [];
+  const mergedLabels: string[] = [];
+  const ipPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
+  let hitIdx = 0;
+
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    if (ipPattern.test(label.trim())) {
+      // This is a real device entry — consume the next hit value
+      mergedLabels.push(label);
+      mergedHits.push(hits[hitIdx] ?? "0");
+      hitIdx++;
+    } else if (mergedLabels.length > 0) {
+      // This is a fragment — merge with previous label, DON'T consume a hit.
+      // Use ", " to restore the original separator (extractArray splits on "', '" 
+      // which removes the comma+space, and then trim() removes leading space from fragment)
+      mergedLabels[mergedLabels.length - 1] += ", " + label;
+    }
+  }
+
   const result: { hits: number; label: string }[] = [];
-  const len = Math.min(hits.length, labels.length);
+  const len = Math.min(mergedHits.length, mergedLabels.length);
   for (let i = 0; i < len; i++) {
-    if (!labels[i] || labels[i] === "") continue;
+    if (!mergedLabels[i] || mergedLabels[i] === "") continue;
     result.push({
-      hits: parseInt(hits[i], 10) || 0,
-      label: labels[i],
+      hits: parseInt(mergedHits[i], 10) || 0,
+      label: mergedLabels[i],
     });
   }
   return result;

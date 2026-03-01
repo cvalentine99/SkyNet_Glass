@@ -229,7 +229,9 @@ describe("parseSkynetStats — realistic format", () => {
   });
 
   it("parses log size", () => {
-    expect(stats.kpi.logSize).toBe("14.2MB");
+    // The old test fixture used "(14.2M)B" format but real router uses "(2.8MB)"
+    // parseLogSize extracts the content inside parentheses
+    expect(stats.kpi.logSize).toBe("14.2M");
   });
 
   it("parses inbound port hits", () => {
@@ -351,7 +353,7 @@ function SetStatsDate() {
 }
 
 function SetStatsSize() {
-\tdocument.getElementById("statssize").innerHTML = "Log Size - (2.1M)B"
+\tdocument.getElementById("statssize").innerHTML = "Log Size - (2.1MB)"
 }
 `;
     const stats = parseSkynetStats(kpiOnly);
@@ -411,5 +413,152 @@ LabelTCConnHits.unshift('192.168.1.50 (John\\'s MacBook Pro)');
     const stats = parseSkynetStats(js);
     expect(stats.topBlockedDevices).toHaveLength(1);
     expect(stats.topBlockedDevices[0].hits).toBe(100);
+  });
+
+  it("handles device labels with commas in manufacturer name (Apple, Inc.)", () => {
+    // Real data from GT-AX11000: the comma in "Apple, Inc." causes the
+    // .unshift() to split the label across two quoted values
+    const js = `function SetBLCount1() {
+\tdocument.getElementById("blcount1").innerHTML = "0"
+}
+
+var DataTCConnHits;
+DataTCConnHits = [];
+DataTCConnHits.unshift('234', '119');
+
+var LabelTCConnHits;
+LabelTCConnHits = [];
+LabelTCConnHits.unshift('192.168.50.180 (Apple', ' Inc.)', '192.168.50.171 (LG Innotek)');
+`;
+    const stats = parseSkynetStats(js);
+    expect(stats.topBlockedDevices).toHaveLength(2);
+    expect(stats.topBlockedDevices[0]).toEqual({
+      hits: 234,
+      label: "192.168.50.180 (Apple, Inc.)",
+    });
+    expect(stats.topBlockedDevices[1]).toEqual({
+      hits: 119,
+      label: "192.168.50.171 (LG Innotek)",
+    });
+  });
+});
+
+// ─── Real Router Data (GT-AX11000) ────────────────────────
+
+describe("parseSkynetStats — real GT-AX11000 data", () => {
+  const REAL_STATS_JS = `function SetBLCount1() {
+\tdocument.getElementById("blcount1").innerHTML = "39326"
+}
+
+function SetBLCount2() {
+\tdocument.getElementById("blcount2").innerHTML = "2695"
+}
+
+function SetHits1() {
+\tdocument.getElementById("hits1").innerHTML = "0"
+}
+
+function SetHits2() {
+\tdocument.getElementById("hits2").innerHTML = "0"
+}
+
+function SetStatsDate() {
+\tdocument.getElementById("statsdate").innerHTML = "Monitoring From Feb 28 16:08:21 To Mar 1 13:37:58"
+}
+
+function SetStatsSize() {
+\tdocument.getElementById("statssize").innerHTML = "Log Size - (2.8MB)"
+}
+
+var DataInPortHits;
+DataInPortHits = [];
+DataInPortHits.unshift('627', '182', '86', '78', '74', '56', '50', '34', '34', '32');
+
+var LabelInPortHits;
+LabelInPortHits = [];
+LabelInPortHits.unshift('8443', '8728', '22', '8080', '443', '5060', '3389', '34567', '3366', '30002');
+
+var LabelInConn_IPs;
+LabelInConn_IPs = [];
+LabelInConn_IPs.unshift('199.45.154.177', '8.221.137.196');
+
+var LabelInConn_BanReason;
+LabelInConn_BanReason = [];
+LabelInConn_BanReason.unshift('BanMalware: et_block.netset*', 'BanMalware: firehol_level3.netset');
+
+var LabelInConn_AlienVault;
+LabelInConn_AlienVault = [];
+LabelInConn_AlienVault.unshift('https://otx.alienvault.com/indicator/ip/199.45.154.177', 'https://otx.alienvault.com/indicator/ip/8.221.137.196');
+
+var LabelInConn_Country;
+LabelInConn_Country = [];
+LabelInConn_Country.unshift('US', 'JP');
+
+var LabelInConn_AssDomains;
+LabelInConn_AssDomains = [];
+LabelInConn_AssDomains.unshift('*', '*');
+
+var LabelOutConn_IPs;
+LabelOutConn_IPs = [];
+LabelOutConn_IPs.unshift('');
+
+var LabelOutConn_BanReason;
+LabelOutConn_BanReason = [];
+LabelOutConn_BanReason.unshift('');
+
+var LabelOutConn_AlienVault;
+LabelOutConn_AlienVault = [];
+LabelOutConn_AlienVault.unshift('');
+
+var LabelOutConn_Country;
+LabelOutConn_Country = [];
+LabelOutConn_Country.unshift('');
+
+var LabelOutConn_AssDomains;
+LabelOutConn_AssDomains = [];
+LabelOutConn_AssDomains.unshift('');
+
+var DataTCConnHits;
+DataTCConnHits = [];
+DataTCConnHits.unshift('234', '119');
+
+var LabelTCConnHits;
+LabelTCConnHits = [];
+LabelTCConnHits.unshift('192.168.50.180 (Apple', ' Inc.)', '192.168.50.171 (LG Innotek)');
+`;
+
+  it("validates as valid stats.js", () => {
+    expect(validateStatsJs(REAL_STATS_JS)).toBeNull();
+  });
+
+  it("parses KPIs from real router", () => {
+    const stats = parseSkynetStats(REAL_STATS_JS);
+    expect(stats.kpi.ipsBanned).toBe(39326);
+    expect(stats.kpi.rangesBanned).toBe(2695);
+    expect(stats.kpi.inboundBlocks).toBe(0);
+    expect(stats.kpi.outboundBlocks).toBe(0);
+    expect(stats.kpi.logSize).toBe("2.8MB");
+    expect(stats.kpi.monitoringFrom).toBe("Feb 28 16:08:21");
+    expect(stats.kpi.monitoringTo).toBe("Mar 1 13:37:58");
+  });
+
+  it("parses 10 inbound port hits", () => {
+    const stats = parseSkynetStats(REAL_STATS_JS);
+    expect(stats.inboundPortHits).toHaveLength(10);
+    expect(stats.inboundPortHits[0]).toEqual({ port: 8443, hits: 627 });
+  });
+
+  it("handles empty outbound connections", () => {
+    const stats = parseSkynetStats(REAL_STATS_JS);
+    expect(stats.lastOutboundConnections).toHaveLength(0);
+  });
+
+  it("reassembles Apple, Inc. device label correctly", () => {
+    const stats = parseSkynetStats(REAL_STATS_JS);
+    expect(stats.topBlockedDevices).toHaveLength(2);
+    expect(stats.topBlockedDevices[0].label).toBe("192.168.50.180 (Apple, Inc.)");
+    expect(stats.topBlockedDevices[0].hits).toBe(234);
+    expect(stats.topBlockedDevices[1].label).toBe("192.168.50.171 (LG Innotek)");
+    expect(stats.topBlockedDevices[1].hits).toBe(119);
   });
 });

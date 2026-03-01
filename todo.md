@@ -602,3 +602,13 @@
 - [x] Fixed unbanBulk route (was inline SSH, now uses exported unbanBulk function)
 - [x] All 297 tests pass, production build clean (118KB)
 - [ ] Push to GitHub
+
+## Phase 30: Validate Parser Against Real Router Data (GT-AX11000)
+- [x] Ran real stats.js through parser — validation passed, all data sections parsed
+- [x] Bug 1: parseLogSize double-B — "(2.8MB)" was parsed as "2.8MBB" — fixed (extract parens content as-is)
+- [x] Bug 2: Device labels with commas — "Apple, Inc." split across two array elements — fixed (merge fragments by IP detection, separate hitIdx)
+- [x] Bug 3: extractArray trim() removed leading space from fragments, merge with "," lost space — fixed (merge with ", ")
+- [x] Added real GT-AX11000 test suite (5 tests) with actual router data
+- [x] Added comma-in-device-name edge case test
+- [x] All 303 tests pass across 12 test files, 0 TypeScript errors
+- [ ] Push to GitHub
