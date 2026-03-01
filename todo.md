@@ -614,7 +614,12 @@
 - [ ] Push to GitHub
 
 ## Phase 26: Fix DB Migration Issues on User's Server
-- [ ] Fix skynet_config query failure: migration 0007 (ADD sshPort) failed to apply due to MySQL access denied error — user's DB may be missing sshPort column
-- [ ] Provide manual SQL fix commands for user to run
+- [x] Fix skynet_config query failure: migration 0007 (ADD sshPort) failed to apply due to MySQL access denied error — user's DB may be missing sshPort column
+- [x] Provide manual SQL fix commands for user to run
 - [ ] Clean up Vite analytics warnings in index.html (VITE_ANALYTICS_ENDPOINT, VITE_ANALYTICS_WEBSITE_ID)
-- [ ] Fix testConnection: replace 'whoami' with BusyBox-compatible command (ASUS Merlin doesn't have whoami)
+- [x] Fix testConnection: replace 'whoami' with BusyBox-compatible command (ASUS Merlin doesn't have whoami)
+
+## Phase 27: Automated Install Script
+- [ ] Build install.sh that handles ALL deployment automatically: system packages, Node.js, pnpm, MySQL user/db/password, .env generation, build, migrations, systemd service
+- [ ] Push to GitHub
+- [ ] Deliver one-liner install command to user
