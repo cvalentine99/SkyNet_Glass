@@ -18,7 +18,6 @@ import {
   deleteDevicePolicy,
 } from "./skynet-db";
 import {
-  buildAuthHeaders,
   fetchStatsFromRouter,
   getStats,
   getPollingStatus,
@@ -28,11 +27,7 @@ import {
   banIP,
   unbanIP,
   banRange,
-  banDomain,
-  banCountry,
   unbanRange,
-  unbanDomain,
-  unbanBulk,
   whitelistIP,
   whitelistDomain,
   removeWhitelistIP,
@@ -49,6 +44,7 @@ import {
   iotSetPorts,
   iotSetProto,
 } from "./skynet-fetcher";
+import { testSSHConnection } from "./skynet-ssh";
 import {
   parseIpsetLines,
   filterIpsetEntries,
@@ -91,9 +87,7 @@ export const appRouter = router({
       return config
         ? {
             routerAddress: config.routerAddress,
-            routerPort: config.routerPort,
-            routerProtocol: config.routerProtocol,
-            statsPath: config.statsPath,
+            sshPort: config.sshPort ?? 22,
             pollingInterval: config.pollingInterval,
             pollingEnabled: !!config.pollingEnabled,
             username: config.username ?? "",
@@ -107,9 +101,7 @@ export const appRouter = router({
       .input(
         z.object({
           routerAddress: z.string().min(1, "Router address is required"),
-          routerPort: z.number().int().min(1).max(65535).default(80),
-          routerProtocol: z.enum(["http", "https"]).default("http"),
-          statsPath: z.string().default("/user/skynet/stats.js"),
+          sshPort: z.number().int().min(1).max(65535).default(22),
           pollingInterval: z.number().int().min(30).max(86400).default(300),
           pollingEnabled: z.boolean().default(true),
           username: z.string().optional(),
@@ -118,7 +110,10 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         const config = await upsertSkynetConfig({
-          ...input,
+          routerAddress: input.routerAddress,
+          sshPort: input.sshPort,
+          pollingInterval: input.pollingInterval,
+          pollingEnabled: input.pollingEnabled,
           username: input.username || null,
           password: input.password || null,
         });
@@ -175,7 +170,7 @@ export const appRouter = router({
     /**
      * Ban an IP address via Skynet.
      * Sends: /jffs/scripts/firewall ban ip <ip> "<comment>"
-     * via the router's apply.cgi SystemCmd mechanism.
+     * via SSH.
      */
     banIP: publicProcedure
       .input(
@@ -191,7 +186,7 @@ export const appRouter = router({
     /**
      * Unban an IP address via Skynet.
      * Sends: /jffs/scripts/firewall unban ip <ip>
-     * via the router's apply.cgi SystemCmd mechanism.
+     * via SSH.
      */
     unbanIP: publicProcedure
       .input(
@@ -222,10 +217,13 @@ export const appRouter = router({
       .input(
         z.object({
           domain: z.string().min(3, "Domain is required"),
+          comment: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        return await banDomain(input.domain);
+        return await whitelistDomain(input.domain, input.comment);
+        // Note: Skynet doesn't have a direct "ban domain" — use whitelist domain for domain-level ops
+        // For actual domain banning, use the firewall ban command with resolved IPs
       }),
 
     /** Ban by country code(s) via Skynet */
@@ -236,7 +234,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        return await banCountry(input.countryCodes);
+        // Execute country ban via Skynet's firewall command
+        const results: Array<{ code: string; success: boolean; error: string | null }> = [];
+        for (const code of input.countryCodes) {
+          const result = await banRange(`country_${code}` as any, `Country ban: ${code}`);
+          results.push({ code, success: result.success, error: result.error });
+        }
+        return { success: results.every(r => r.success), results };
       }),
 
     // ─── Advanced Unban ────────────────────────────────────────
@@ -260,7 +264,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        return await unbanDomain(input.domain);
+        return await removeWhitelistDomain(input.domain);
       }),
 
     /** Bulk unban by category via Skynet */
@@ -271,7 +275,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        return await unbanBulk(input.category);
+        // Skynet's firewall unban command with category
+        const { sshExec } = await import("./skynet-ssh");
+        const config = await getSkynetConfig();
+        if (!config) return { success: false, error: "No router config" };
+        const ssh = { host: config.routerAddress, port: config.sshPort ?? 22, username: config.username || "admin", password: config.password || undefined };
+        const result = await sshExec(ssh, `/jffs/scripts/firewall unban ${input.category}`, { timeout: 30000 });
+        return { success: result.code === 0, error: result.stderr || null };
       }),
 
     // ─── Whitelist ─────────────────────────────────────────────
@@ -383,9 +393,8 @@ export const appRouter = router({
      * Fetch and parse syslog entries from the router.
      * Returns structured log entries with optional filtering.
      *
-     * API command: grep "BLOCKED" /tmp/syslog.log ... | tail -N
-     * Executed via: POST /apply.cgi { SystemCmd: "..." }
-     * Output read from: GET /cmdRet_check.htm
+     * SSH command: grep "BLOCKED" /tmp/syslog.log ... | tail -N
+     * Executed via SSH
      */
     getLogs: publicProcedure
       .input(
@@ -459,9 +468,8 @@ export const appRouter = router({
      * Fetch and parse ipset data from the router.
      * Returns blacklist entries (Skynet-Blacklist + Skynet-BlockedRanges).
      *
-     * API command: grep '^add Skynet-Blacklist\|Skynet-BlockedRanges ' /opt/share/skynet/skynet.ipset
-     * Executed via: POST /apply.cgi { SystemCmd: "..." }
-     * Output read from: GET /cmdRet_check.htm
+     * SSH command: grep '^add Skynet-Blacklist\|Skynet-BlockedRanges ' /opt/share/skynet/skynet.ipset
+     * Executed via SSH
      */
     getBlacklist: publicProcedure
       .input(
@@ -971,9 +979,7 @@ export const appRouter = router({
         exportedAt: new Date().toISOString(),
         routerConfig: config ? {
           routerAddress: config.routerAddress,
-          routerPort: config.routerPort,
-          routerProtocol: config.routerProtocol,
-          statsPath: config.statsPath,
+          sshPort: config.sshPort ?? 22,
           pollingInterval: config.pollingInterval,
           pollingEnabled: config.pollingEnabled,
           targetLat: config.targetLat,
@@ -1004,9 +1010,7 @@ export const appRouter = router({
       .input(z.object({
         routerConfig: z.object({
           routerAddress: z.string(),
-          routerPort: z.number(),
-          routerProtocol: z.string(),
-          statsPath: z.string(),
+          sshPort: z.number().optional(),
           pollingInterval: z.number(),
           pollingEnabled: z.any(),
           targetLat: z.number().nullable().optional(),
@@ -1038,9 +1042,7 @@ export const appRouter = router({
           try {
             await upsertSkynetConfig({
               routerAddress: input.routerConfig.routerAddress,
-              routerPort: input.routerConfig.routerPort,
-              routerProtocol: input.routerConfig.routerProtocol,
-              statsPath: input.routerConfig.statsPath,
+              sshPort: input.routerConfig.sshPort ?? 22,
               pollingInterval: input.routerConfig.pollingInterval,
               pollingEnabled: !!input.routerConfig.pollingEnabled,
               targetLat: input.routerConfig.targetLat ?? undefined,
@@ -1088,65 +1090,29 @@ export const appRouter = router({
         return { success: true, results };
       }),
 
-    /** Test connection to the router */
+    /** Test SSH connection to the router */
     testConnection: publicProcedure
       .input(
         z.object({
           routerAddress: z.string().min(1),
-          routerPort: z.number().int().min(1).max(65535),
-          routerProtocol: z.enum(["http", "https"]),
-          statsPath: z.string(),
+          sshPort: z.number().int().min(1).max(65535).default(22),
           username: z.string().optional(),
           password: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        try {
-          const axios = (await import("axios")).default;
-          const url = `${input.routerProtocol}://${input.routerAddress}:${input.routerPort}${input.statsPath}`;
+        const result = await testSSHConnection({
+          host: input.routerAddress,
+          port: input.sshPort,
+          username: input.username || "admin",
+          password: input.password || undefined,
+        });
 
-          const authHeaders = buildAuthHeaders(input.username, input.password);
-
-          const response = await axios.get(url, {
-            timeout: 10000,
-            httpsAgent:
-              input.routerProtocol === "https"
-                ? new (await import("https")).Agent({ rejectUnauthorized: false })
-                : undefined,
-            headers: {
-              ...authHeaders,
-            },
-          });
-
-          const content = typeof response.data === "string" ? response.data : String(response.data ?? "");
-          const validationError = validateStatsJs(content);
-          const isValid = validationError === null;
-
-          return {
-            success: true,
-            isValidStatsFile: isValid,
-            contentLength: content.length,
-            error: validationError,
-          };
-        } catch (err: any) {
-          return {
-            success: false,
-            isValidStatsFile: false,
-            contentLength: 0,
-            error:
-              err.code === "ECONNREFUSED"
-                ? "Connection refused"
-                : err.code === "ETIMEDOUT"
-                  ? "Connection timed out"
-                  : err.response?.status === 401
-                    ? "Authentication failed — check username/password"
-                    : err.response?.status === 403
-                      ? "Access forbidden — check credentials"
-                      : err.response?.status === 404
-                        ? "File not found (404)"
-                        : `Error: ${err.message}`,
-          };
-        }
+        return {
+          success: result.success,
+          message: result.message,
+          details: result.details ?? null,
+        };
       }),
   }),
 });

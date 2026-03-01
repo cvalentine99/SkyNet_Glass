@@ -1,8 +1,8 @@
 /**
  * Settings — Router Connection Configuration
- * Allows the user to configure the Skynet router address, protocol, port,
- * stats path, polling interval, and HTTP Basic Auth credentials.
- * Also provides test connection and manual fetch/genstats triggers.
+ * Allows the user to configure the Skynet router SSH address, port,
+ * polling interval, and SSH credentials.
+ * Also provides SSH connection test and manual fetch/genstats triggers.
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -43,9 +43,7 @@ import {
 
 export default function SettingsPage() {
   const [routerAddress, setRouterAddress] = useState("192.168.50.1");
-  const [routerPort, setRouterPort] = useState(8443);
-  const [routerProtocol, setRouterProtocol] = useState<"http" | "https">("https");
-  const [statsPath, setStatsPath] = useState("/user/skynet/stats.js");
+  const [sshPort, setSshPort] = useState(22);
   const [pollingInterval, setPollingInterval] = useState(300);
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [username, setUsername] = useState("");
@@ -73,17 +71,15 @@ export default function SettingsPage() {
 
   const testConnectionMutation = trpc.skynet.testConnection.useMutation({
     onSuccess: (result) => {
-      if (result.success && result.isValidStatsFile) {
-        toast.success("Connection successful", {
-          description: `Valid Skynet stats.js found (${result.contentLength} bytes)`,
-        });
-      } else if (result.success && !result.isValidStatsFile) {
-        toast.warning("File found but invalid", {
-          description: result.error ?? "Not a valid Skynet stats.js file",
-        });
+      if (result.success) {
+        const details = result.details;
+        const desc = details
+          ? `${details.model || "Router"} — ${details.firmware || "Unknown firmware"}${details.skynetInstalled ? " — Skynet installed" : ""}${details.statsExists ? " — stats.js found" : ""}`
+          : "SSH connection established";
+        toast.success("Connection successful", { description: desc });
       } else {
         toast.error("Connection failed", {
-          description: result.error ?? "Unknown error",
+          description: result.message ?? "Unknown error",
         });
       }
     },
@@ -120,13 +116,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (configQuery.data) {
       setRouterAddress(configQuery.data.routerAddress);
-      setRouterPort(configQuery.data.routerPort);
-      setRouterProtocol(configQuery.data.routerProtocol as "http" | "https");
-      setStatsPath(configQuery.data.statsPath);
+      setSshPort(configQuery.data.sshPort ?? 22);
       setPollingInterval(configQuery.data.pollingInterval);
       setPollingEnabled(configQuery.data.pollingEnabled);
       setUsername(configQuery.data.username ?? "");
-      // Don't populate password — show placeholder if one exists
       if (configQuery.data.hasPassword) {
         setPasswordPlaceholder("••••••••");
       }
@@ -136,13 +129,10 @@ export default function SettingsPage() {
   const handleSave = () => {
     saveConfigMutation.mutate({
       routerAddress,
-      routerPort,
-      routerProtocol,
-      statsPath,
+      sshPort,
       pollingInterval,
       pollingEnabled,
       username: username || undefined,
-      // Only send password if user typed a new one
       password: password || undefined,
     });
   };
@@ -150,9 +140,7 @@ export default function SettingsPage() {
   const handleTestConnection = () => {
     testConnectionMutation.mutate({
       routerAddress,
-      routerPort,
-      routerProtocol,
-      statsPath,
+      sshPort,
       username: username || undefined,
       password: password || undefined,
     });
@@ -251,59 +239,92 @@ export default function SettingsPage() {
             </h2>
 
             <div className="space-y-4">
-              {/* Protocol + Address + Port */}
+              {/* Router Address + SSH Port */}
               <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-3">
-                  <label className="block text-xs text-muted-foreground mb-1.5">Protocol</label>
-                  <select
-                    value={routerProtocol}
-                    onChange={(e) => setRouterProtocol(e.target.value as "http" | "https")}
-                    className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold/50"
-                  >
-                    <option value="http">HTTP</option>
-                    <option value="https">HTTPS</option>
-                  </select>
-                </div>
-                <div className="col-span-6">
+                <div className="col-span-8">
                   <label className="block text-xs text-muted-foreground mb-1.5">Router Address</label>
                   <input
                     type="text"
                     value={routerAddress}
                     onChange={(e) => setRouterAddress(e.target.value)}
-                    placeholder="192.168.1.1"
+                    placeholder="192.168.50.1"
                     className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
                   />
                 </div>
-                <div className="col-span-3">
-                  <label className="block text-xs text-muted-foreground mb-1.5">Port</label>
+                <div className="col-span-4">
+                  <label className="block text-xs text-muted-foreground mb-1.5">SSH Port</label>
                   <input
                     type="number"
-                    value={routerPort}
-                    onChange={(e) => setRouterPort(parseInt(e.target.value) || 80)}
+                    value={sshPort}
+                    onChange={(e) => setSshPort(parseInt(e.target.value) || 22)}
                     min={1}
                     max={65535}
                     className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold/50"
                   />
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground -mt-2">
+                SSH must be enabled on your ASUS router (Administration → System → Enable SSH: LAN only).
+                Default port is 22.
+              </p>
 
-              {/* Stats Path */}
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <Link2 className="w-3 h-3" />
-                  Stats File Path
-                </label>
-                <input
-                  type="text"
-                  value={statsPath}
-                  onChange={(e) => setStatsPath(e.target.value)}
-                  placeholder="/user/skynet/stats.js"
-                  className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Default: /user/skynet/stats.js — only change if you've customized Skynet's WebUI path
-                </p>
+              {/* SSH Credentials */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <User className="w-3 h-3" />
+                    SSH Username
+                  </label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="admin"
+                    autoComplete="username"
+                    className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <Lock className="w-3 h-3" />
+                    SSH Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={passwordPlaceholder || "Router password"}
+                      autoComplete="current-password"
+                      className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {passwordPlaceholder && !password && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Password saved. Leave blank to keep it.
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Auth status indicator */}
+              {(username || passwordPlaceholder) && (
+                <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-gold/5 border border-gold/10">
+                  <Shield className="w-3.5 h-3.5 text-gold" />
+                  <span className="text-muted-foreground">
+                    SSH credentials configured for <span className="text-gold font-mono">{username || "admin"}</span>.
+                    All router communication uses SSH.
+                  </span>
+                </div>
+              )}
 
               {/* Test Connection */}
               <button
@@ -313,92 +334,34 @@ export default function SettingsPage() {
               >
                 {testConnectionMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
-                ) : testConnectionMutation.data?.success && testConnectionMutation.data?.isValidStatsFile ? (
+                ) : testConnectionMutation.data?.success ? (
                   <CheckCircle2 className="w-4 h-4 text-severity-low" />
                 ) : testConnectionMutation.data && !testConnectionMutation.data.success ? (
                   <XCircle className="w-4 h-4 text-severity-critical" />
                 ) : (
                   <Wifi className="w-4 h-4" />
                 )}
-                Test Connection
+                Test SSH Connection
               </button>
-            </div>
-          </GlassCard>
 
-          {/* Authentication */}
-          <GlassCard className="mb-6 p-5">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
-              <Lock className="w-4 h-4 text-gold" />
-              Authentication
-            </h2>
-            <p className="text-[10px] text-muted-foreground mb-5">
-              ASUS routers use HTTP Basic Auth. Enter your router's admin credentials to enable authenticated data fetching.
-            </p>
-
-            <div className="space-y-4">
-              {/* Username */}
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <User className="w-3 h-3" />
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
-                  autoComplete="username"
-                  className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <Lock className="w-3 h-3" />
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={passwordPlaceholder || "Enter router password"}
-                    autoComplete="current-password"
-                    className="w-full bg-secondary/50 border border-border rounded-md px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-                {passwordPlaceholder && !password && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    A password is already saved. Leave blank to keep the existing password, or enter a new one to update it.
-                  </p>
-                )}
-              </div>
-
-              {/* Auth status indicator */}
-              {(username || passwordPlaceholder) && (
-                <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-md bg-gold/5 border border-gold/10">
-                  <Shield className="w-3.5 h-3.5 text-gold" />
-                  <span className="text-muted-foreground">
-                    {username && (password || passwordPlaceholder)
-                      ? <>Credentials configured for <span className="text-gold font-mono">{username}</span>. Auth headers will be sent with all router requests.</>
-                      : username
-                        ? <>Username set to <span className="text-gold font-mono">{username}</span>. Add a password to enable authentication.</>
-                        : <>A password is saved but no username is set.</>
-                    }
-                  </span>
+              {/* Test connection result details */}
+              {testConnectionMutation.data?.details && testConnectionMutation.data.success && (
+                <div className="text-xs text-muted-foreground bg-severity-low/5 border border-severity-low/20 rounded-md px-3 py-2 space-y-1">
+                  {testConnectionMutation.data.details.model && (
+                    <p>Model: <span className="text-foreground font-mono">{testConnectionMutation.data.details.model}</span></p>
+                  )}
+                  {testConnectionMutation.data.details.firmware && (
+                    <p>Firmware: <span className="text-foreground font-mono">{testConnectionMutation.data.details.firmware}</span></p>
+                  )}
+                  {testConnectionMutation.data.details.uptime && (
+                    <p>Uptime: <span className="text-foreground font-mono">{testConnectionMutation.data.details.uptime}</span></p>
+                  )}
+                  <p>Skynet: <span className={testConnectionMutation.data.details.skynetInstalled ? "text-severity-low" : "text-severity-critical"}>
+                    {testConnectionMutation.data.details.skynetInstalled ? "Installed" : "Not found"}
+                  </span></p>
+                  <p>Stats file: <span className={testConnectionMutation.data.details.statsExists ? "text-severity-low" : "text-severity-critical"}>
+                    {testConnectionMutation.data.details.statsExists ? "Found" : "Not found"}
+                  </span></p>
                 </div>
               )}
             </div>
@@ -497,18 +460,20 @@ export default function SettingsPage() {
             </h2>
             <div className="text-xs text-muted-foreground space-y-2 leading-relaxed">
               <p>
-                This dashboard connects to your ASUS router running the Skynet firewall add-on.
-                Skynet generates a <code className="text-gold/80 font-mono">stats.js</code> file
-                containing all firewall statistics, which this app fetches and parses into the dashboard.
+                This dashboard connects to your ASUS Merlin router running the Skynet firewall add-on
+                via <strong className="text-foreground">SSH</strong>. All communication — stats fetching, firewall commands,
+                syslog reading, DHCP leases — goes through a secure SSH tunnel.
               </p>
               <p>
-                <strong className="text-foreground">Authentication:</strong> ASUS routers require HTTP Basic Auth
-                for WebUI access. Enter your router's admin username and password above. Credentials are stored
-                securely in the database and sent as Base64-encoded Authorization headers with each request.
+                <strong className="text-foreground">SSH Access:</strong> Enable SSH on your router
+                (Administration → System → Enable SSH: LAN only). The same admin username and password
+                you use to log into the WebUI works for SSH. Credentials are stored securely in the database.
               </p>
               <p>
-                <strong className="text-foreground">Polling</strong> fetches the existing stats.js file — this is lightweight and fast.
-                <strong className="text-foreground"> Regenerate Stats</strong> tells the router to re-analyze its logs and rebuild stats.js — this takes ~45 seconds and is CPU-intensive on the router.
+                <strong className="text-foreground">Polling</strong> reads <code className="text-gold/80 font-mono">/tmp/var/wwwext/skynet/stats.js</code> directly
+                from the router's filesystem via SSH — fast and reliable.
+                <strong className="text-foreground"> Regenerate Stats</strong> runs <code className="text-gold/80 font-mono">firewall stats</code> on the router —
+                this takes ~45 seconds and is CPU-intensive.
               </p>
               <p>
                 The router auto-regenerates stats every 12 hours via cron. Use "Regenerate Stats" sparingly

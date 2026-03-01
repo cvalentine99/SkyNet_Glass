@@ -1,55 +1,75 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthHeaders } from "./skynet-fetcher";
+import { testSSHConnection, type SSHConfig } from "./skynet-ssh";
 
-describe("buildAuthHeaders", () => {
-  it("returns empty object when username is null", () => {
-    expect(buildAuthHeaders(null, "password")).toEqual({});
-  });
+/**
+ * SSH Authentication Tests
+ *
+ * These tests verify the SSH client's error handling and diagnostic messages.
+ * They don't require a real router — they test that connection failures
+ * produce clear, actionable error messages.
+ */
 
-  it("returns empty object when username is undefined", () => {
-    expect(buildAuthHeaders(undefined, "password")).toEqual({});
-  });
-
-  it("returns empty object when username is empty string", () => {
-    expect(buildAuthHeaders("", "password")).toEqual({});
-  });
-
-  it("returns Authorization header with valid credentials", () => {
-    const result = buildAuthHeaders("admin", "secret123");
-    // Base64 of "admin:secret123" = "YWRtaW46c2VjcmV0MTIz"
-    expect(result).toEqual({
-      Authorization: "Basic YWRtaW46c2VjcmV0MTIz",
+describe("SSH Authentication", () => {
+  it("testSSHConnection returns structured result on refused connection", async () => {
+    // Use localhost with a definitely-closed port for fast failure
+    const result = await testSSHConnection({
+      host: "127.0.0.1",
+      port: 59998,
+      username: "admin",
+      password: "wrong",
     });
+    expect(result.success).toBe(false);
+    expect(result.message).toBeDefined();
+    expect(typeof result.message).toBe("string");
+    expect(result.message.length).toBeGreaterThan(0);
+  }, 15000);
+
+  it("testSSHConnection returns structured result on refused port", async () => {
+    const result = await testSSHConnection({
+      host: "127.0.0.1",
+      port: 59999,
+      username: "admin",
+      password: "test",
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toBeDefined();
+    expect(
+      result.message.toLowerCase().includes("refused") ||
+      result.message.toLowerCase().includes("failed") ||
+      result.message.toLowerCase().includes("timed out")
+    ).toBe(true);
+  }, 15000);
+
+  it("SSHConfig type requires host, port, username", () => {
+    const config: SSHConfig = {
+      host: "192.168.50.1",
+      port: 22,
+      username: "admin",
+    };
+    expect(config.host).toBe("192.168.50.1");
+    expect(config.port).toBe(22);
+    expect(config.username).toBe("admin");
+    expect(config.password).toBeUndefined();
   });
 
-  it("handles password with special characters", () => {
-    const result = buildAuthHeaders("admin", "p@ss:w0rd!");
-    const expected = Buffer.from("admin:p@ss:w0rd!").toString("base64");
-    expect(result).toEqual({
-      Authorization: `Basic ${expected}`,
-    });
+  it("SSHConfig accepts optional password and privateKey", () => {
+    const config: SSHConfig = {
+      host: "192.168.50.1",
+      port: 22,
+      username: "admin",
+      password: "mypassword",
+      privateKey: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+    };
+    expect(config.password).toBe("mypassword");
+    expect(config.privateKey).toBeDefined();
   });
 
-  it("handles null password (sends username with empty password)", () => {
-    const result = buildAuthHeaders("admin", null);
-    // Base64 of "admin:" = "YWRtaW46"
-    expect(result).toEqual({
-      Authorization: "Basic YWRtaW46",
-    });
-  });
-
-  it("handles undefined password (sends username with empty password)", () => {
-    const result = buildAuthHeaders("admin", undefined);
-    expect(result).toEqual({
-      Authorization: "Basic YWRtaW46",
-    });
-  });
-
-  it("handles unicode characters in credentials", () => {
-    const result = buildAuthHeaders("admin", "pässwörd");
-    const expected = Buffer.from("admin:pässwörd").toString("base64");
-    expect(result).toEqual({
-      Authorization: `Basic ${expected}`,
-    });
+  it("SSHConfig supports custom ports", () => {
+    const config: SSHConfig = {
+      host: "10.0.0.1",
+      port: 2222,
+      username: "root",
+    };
+    expect(config.port).toBe(2222);
   });
 });

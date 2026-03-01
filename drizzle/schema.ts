@@ -25,21 +25,23 @@ export type InsertUser = typeof users.$inferInsert;
  */
 export const skynetConfig = mysqlTable("skynet_config", {
   id: int("id").autoincrement().primaryKey(),
-  /** Router IP or hostname (e.g., "192.168.1.1") */
+  /** Router IP or hostname (e.g., "192.168.50.1") */
   routerAddress: varchar("routerAddress", { length: 255 }).notNull(),
-  /** Router HTTP port (default 80 for http, 8443 for https) */
+  /** SSH port (default 22) */
+  sshPort: int("sshPort").notNull().default(22),
+  /** @deprecated — kept for migration compat, unused in SSH mode */
   routerPort: int("routerPort").notNull().default(80),
-  /** Protocol: http or https */
+  /** @deprecated — kept for migration compat, unused in SSH mode */
   routerProtocol: varchar("routerProtocol", { length: 10 }).notNull().default("http"),
-  /** Path to stats.js on the router (default: /user/skynet/stats.js) */
+  /** @deprecated — kept for migration compat, unused in SSH mode */
   statsPath: varchar("statsPath", { length: 255 }).notNull().default("/user/skynet/stats.js"),
   /** Polling interval in seconds (default: 300 = 5 minutes) */
   pollingInterval: int("pollingInterval").notNull().default(300),
   /** Whether polling is enabled */
   pollingEnabled: int("pollingEnabled").notNull().default(1),
-  /** Router HTTP Basic Auth username (optional) */
+  /** SSH username (typically "admin" for ASUS routers) */
   username: varchar("username", { length: 255 }),
-  /** Router HTTP Basic Auth password (optional, stored encrypted) */
+  /** SSH password */
   password: varchar("password", { length: 512 }),
   /** Router geographic latitude (for Threat Map target location) */
   targetLat: float("targetLat"),

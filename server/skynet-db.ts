@@ -27,9 +27,7 @@ export async function getSkynetConfig(): Promise<SkynetConfig | null> {
 
 export async function upsertSkynetConfig(config: {
   routerAddress: string;
-  routerPort: number;
-  routerProtocol: string;
-  statsPath: string;
+  sshPort?: number;
   pollingInterval: number;
   pollingEnabled: boolean;
   username?: string | null;
@@ -44,9 +42,7 @@ export async function upsertSkynetConfig(config: {
 
   const values: Record<string, any> = {
     routerAddress: config.routerAddress,
-    routerPort: config.routerPort,
-    routerProtocol: config.routerProtocol,
-    statsPath: config.statsPath,
+    sshPort: config.sshPort ?? 22,
     pollingInterval: config.pollingInterval,
     pollingEnabled: config.pollingEnabled ? 1 : 0,
     username: config.username ?? null,

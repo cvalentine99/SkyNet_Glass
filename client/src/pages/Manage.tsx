@@ -720,7 +720,8 @@ export default function ManagePage() {
         });
         utils.skynet.getStats.invalidate();
       } else {
-        toast.error("Failed to ban countries", { description: result.error || "Unknown error" });
+        const failedCodes = result.results?.filter((r: any) => !r.success).map((r: any) => r.code).join(", ") || "Unknown";
+        toast.error("Failed to ban countries", { description: `Failed: ${failedCodes}` });
       }
     },
     onError: (err) => toast.error("Ban failed", { description: err.message }),
@@ -1149,8 +1150,8 @@ export default function ManagePage() {
             </h2>
             <div className="text-xs text-muted-foreground space-y-2 leading-relaxed">
               <p>
-                All commands are executed on your router via the <code className="text-gold/80 font-mono">apply.cgi</code> endpoint,
-                which runs the <code className="text-gold/80 font-mono">/jffs/scripts/firewall</code> script (Skynet).
+                All commands are executed on your router via <code className="text-gold/80 font-mono">SSH</code>,
+                running the <code className="text-gold/80 font-mono">/jffs/scripts/firewall</code> script (Skynet) directly.
                 Commands execute immediately and changes persist across reboots.
               </p>
               <p>

@@ -50,6 +50,13 @@
       "when": 1772376554511,
       "tag": "0006_graceful_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1772389156461,
+      "tag": "0007_tricky_warbound",
+      "breakpoints": true
     }
   ]
 }

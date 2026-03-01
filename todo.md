@@ -539,4 +539,57 @@
 - [x] Integrated validation into fetchStatsFromRouter and testConnection routes
 - [x] Rewrote skynet-parser.test.ts with realistic tab-indented format from firewall.sh (26 tests)
 - [x] All 300 tests pass across 12 test files, 0 TypeScript errors
+- [x] Push to GitHub
+
+## Phase 27: Fix Router Auth — Replace HTTP Basic Auth with ASUS Merlin Form Login
+
+- [ ] Research ASUS Merlin login.cgi auth flow (form POST, asus_token cookie, session management)
+- [ ] Rewrite buildAuthHeaders → proper form login with session token caching
+- [ ] Update all router command functions (ban, unban, whitelist, genstats, syslog, ipset, DHCP) to use session token
+- [ ] Handle session expiry and automatic re-login
+- [ ] Update testConnection to use form-based auth
+- [ ] Update Settings UI if needed (remove Basic Auth references)
+- [ ] Write tests for new auth flow
+- [ ] Push to GitHub
+
+## Phase 27: Rewrite Router Communication — HTTP → SSH
+
+### Audit & Plan
+- [ ] Audit all HTTP router touchpoints (fetcher, commands, syslog, ipset, DHCP)
+- [ ] Map each HTTP call to its SSH equivalent
+
+### SSH Client Module
+- [ ] Install ssh2 npm package for Node.js SSH support
+- [ ] Create server/skynet-ssh.ts with connection pooling, password auth, key auth
+- [ ] Handle connection errors, timeouts, and reconnection gracefully
+
+### Rewrite Fetcher
+- [ ] stats.js: cat /tmp/var/wwwext/skynet/stats.js (replaces HTTP GET)
+- [ ] Skynet commands (ban/unban/whitelist): run via SSH instead of start_apply.htm POST
+- [ ] Syslog: cat/tail syslog files via SSH instead of SystemCmd + cmdRet_check.htm
+- [ ] Ipset: ipset save via SSH instead of HTTP
+- [ ] DHCP leases: cat /var/lib/misc/dnsmasq.leases via SSH
+- [ ] DNS log: cat /opt/var/log/dnsmasq.log via SSH
+- [ ] Genstats trigger: run firewall command via SSH instead of start_apply.htm
+
+### Settings UI Update
+- [x] Remove HTTP-specific fields (statsPath, routerPort, routerProtocol)
+- [x] Add SSH port field (default 22)
+- [x] Update testConnection to use SSH
+- [x] Keep username/password fields (same credentials for SSH)
+
+### Tests & Deploy
+- [x] Write tests for SSH module (skynet-auth.test.ts rewritten for SSH)
+- [x] All 297 tests pass across 12 test files
+- [ ] Checkpoint and push to GitHub
+
+## Phase 28: Fix All Broken Routes After SSH Rewrite
+- [x] Audit all imports/exports between routers.ts and skynet-fetcher.ts — all 25 match
+- [x] Fixed stale banCountry runtime error (cached module, resolved by restart)
+- [x] Updated stale HTTP references: Manage.tsx command reference, routers.ts comments (apply.cgi → SSH)
+- [x] Replaced skynet-auth.test.ts: old HTTP Basic Auth tests → SSH auth tests
+- [x] Restarted server — 0 runtime errors
+- [x] Full test suite: 297 tests pass across 12 files
+- [x] Production build: clean (118KB dist/index.js)
+- [x] Browser verified: Dashboard, Settings (SSH form), Topology, Manage all render correctly
 - [ ] Push to GitHub
