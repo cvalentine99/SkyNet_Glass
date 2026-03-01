@@ -35,6 +35,7 @@ import {
   refreshWhitelist,
   fetchSyslog,
   fetchIpsetData,
+  bulkBanImport,
 } from "./skynet-fetcher";
 import {
   parseIpsetLines,
@@ -306,6 +307,27 @@ export const appRouter = router({
     refreshWhitelist: publicProcedure.mutation(async () => {
       return await refreshWhitelist();
     }),
+
+    /**
+     * Bulk ban import — accepts a list of IPs/ranges parsed from a text file.
+     * Processes each entry sequentially with a 500ms delay between commands.
+     * Max 500 entries per import to prevent router overload.
+     */
+    bulkBanImport: publicProcedure
+      .input(
+        z.object({
+          entries: z.array(
+            z.object({
+              address: z.string().min(1),
+              type: z.enum(["ip", "range"]),
+              comment: z.string().max(200).optional(),
+            })
+          ).min(1).max(500),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await bulkBanImport(input.entries);
+      }),
 
     // ─── Historical Stats ─────────────────────────────────────
 

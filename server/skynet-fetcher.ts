@@ -511,6 +511,75 @@ export async function refreshWhitelist(): Promise<{
   return executeRouterCommand(cmd);
 }
 
+// ─── Bulk Import ──────────────────────────────────────────
+
+/**
+ * Bulk ban import — processes a list of IPs and CIDR ranges sequentially.
+ * Each entry is validated and executed with a 500ms delay between commands
+ * to avoid overwhelming the router's apply.cgi endpoint.
+ *
+ * Returns a summary of results: how many succeeded, failed, and skipped.
+ */
+export async function bulkBanImport(
+  entries: Array<{ address: string; type: "ip" | "range"; comment?: string }>
+): Promise<{
+  total: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  results: Array<{ address: string; type: "ip" | "range"; success: boolean; error: string | null }>;
+}> {
+  const results: Array<{ address: string; type: "ip" | "range"; success: boolean; error: string | null }> = [];
+  let succeeded = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const entry of entries) {
+    // Validate
+    if (entry.type === "ip") {
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(entry.address)) {
+        results.push({ address: entry.address, type: entry.type, success: false, error: "Invalid IP format" });
+        skipped++;
+        continue;
+      }
+    } else if (entry.type === "range") {
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(entry.address)) {
+        results.push({ address: entry.address, type: entry.type, success: false, error: "Invalid CIDR format" });
+        skipped++;
+        continue;
+      }
+    }
+
+    // Execute the ban
+    let result: { success: boolean; error: string | null };
+    if (entry.type === "ip") {
+      result = await banIP(entry.address, entry.comment);
+    } else {
+      result = await banRange(entry.address, entry.comment);
+    }
+
+    results.push({ address: entry.address, type: entry.type, ...result });
+    if (result.success) {
+      succeeded++;
+    } else {
+      failed++;
+    }
+
+    // Delay between commands to avoid overwhelming the router
+    if (entries.indexOf(entry) < entries.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  return {
+    total: entries.length,
+    succeeded,
+    failed,
+    skipped,
+    results,
+  };
+}
+
 // ─── Syslog Fetcher ────────────────────────────────────────
 
 /**

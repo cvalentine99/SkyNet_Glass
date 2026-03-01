@@ -30,6 +30,11 @@ import {
   CheckCircle2,
   Ban,
   ListX,
+  Upload,
+  FileText,
+  X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ─── Reusable Command Form ────────────────────────────────
@@ -239,7 +244,432 @@ function BulkUnbanCard({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────
+/// ─── Bulk Import Parser ──────────────────────────────────
+
+interface ParsedEntry {
+  address: string;
+  type: "ip" | "range";
+  valid: boolean;
+  error?: string;
+}
+
+function parseImportText(text: string): ParsedEntry[] {
+  const lines = text.split(/\n/);
+  const entries: ParsedEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const rawLine of lines) {
+    // Strip comments (# or //) and trim
+    const line = rawLine.replace(/#.*$/, "").replace(/\/\/.*$/, "").trim();
+    if (!line) continue;
+
+    // Support comma-separated or space-separated on same line
+    const tokens = line.split(/[,;\s]+/).filter(Boolean);
+
+    for (const token of tokens) {
+      const addr = token.trim();
+      if (!addr) continue;
+
+      // Deduplicate
+      if (seen.has(addr)) continue;
+      seen.add(addr);
+
+      // Detect type
+      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(addr)) {
+        // CIDR range
+        const cidr = parseInt(addr.split("/")[1], 10);
+        if (cidr < 8 || cidr > 32) {
+          entries.push({ address: addr, type: "range", valid: false, error: "CIDR must be /8 to /32" });
+        } else {
+          entries.push({ address: addr, type: "range", valid: true });
+        }
+      } else if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(addr)) {
+        // Single IP
+        const octets = addr.split(".").map(Number);
+        if (octets.some(o => o > 255)) {
+          entries.push({ address: addr, type: "ip", valid: false, error: "Octet > 255" });
+        } else if (octets[0] === 0 || octets[0] === 127 || octets[0] === 255) {
+          entries.push({ address: addr, type: "ip", valid: false, error: "Reserved address" });
+        } else {
+          entries.push({ address: addr, type: "ip", valid: true });
+        }
+      } else {
+        entries.push({ address: addr, type: "ip", valid: false, error: "Not a valid IP or CIDR" });
+      }
+    }
+  }
+
+  return entries;
+}
+
+// ─── Bulk Import Section ─────────────────────────────────
+
+function BulkImportSection() {
+  const [rawText, setRawText] = useState("");
+  const [parsedEntries, setParsedEntries] = useState<ParsedEntry[]>([]);
+  const [comment, setComment] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [importResults, setImportResults] = useState<Array<{ address: string; type: string; success: boolean; error: string | null }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+  const utils = trpc.useUtils();
+
+  const bulkImportMutation = trpc.skynet.bulkBanImport.useMutation({
+    onSuccess: (result) => {
+      setImportResults(result.results);
+      setShowResults(true);
+      if (result.succeeded > 0) {
+        toast.success(`Bulk import complete`, {
+          description: `${result.succeeded} banned, ${result.failed} failed, ${result.skipped} skipped`,
+        });
+        utils.skynet.getStats.invalidate();
+      } else {
+        toast.error("Bulk import failed", {
+          description: `${result.failed} failed, ${result.skipped} skipped`,
+        });
+      }
+    },
+    onError: (err) => {
+      toast.error("Bulk import failed", { description: err.message });
+    },
+  });
+
+  const handleTextChange = (text: string) => {
+    setRawText(text);
+    const entries = parseImportText(text);
+    setParsedEntries(entries);
+    setShowResults(false);
+  };
+
+  const handleFileRead = (file: File) => {
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      handleTextChange(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileRead(file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileRead(file);
+  };
+
+  const handleImport = () => {
+    const validEntries = parsedEntries.filter(e => e.valid);
+    if (validEntries.length === 0) return;
+
+    bulkImportMutation.mutate({
+      entries: validEntries.map(e => ({
+        address: e.address,
+        type: e.type,
+        comment: comment || undefined,
+      })),
+    });
+  };
+
+  const handleClear = () => {
+    setRawText("");
+    setParsedEntries([]);
+    setFileName(null);
+    setShowResults(false);
+    setImportResults([]);
+    setComment("");
+  };
+
+  const validCount = parsedEntries.filter(e => e.valid).length;
+  const invalidCount = parsedEntries.filter(e => !e.valid).length;
+  const ipCount = parsedEntries.filter(e => e.valid && e.type === "ip").length;
+  const rangeCount = parsedEntries.filter(e => e.valid && e.type === "range").length;
+
+  return (
+    <GlassCard className="mb-6 p-5">
+      <div className="flex items-center gap-2 mb-5">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-severity-critical/10">
+          <Upload className="w-4 h-4 text-severity-critical" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Bulk Ban Import</h2>
+          <p className="text-[10px] text-muted-foreground">Import IPs and CIDR ranges from a text file or paste directly (max 500 entries)</p>
+        </div>
+      </div>
+
+      {/* Drop Zone / File Upload */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        className={cn(
+          "relative rounded-xl border-2 border-dashed transition-all duration-200 mb-4",
+          isDragging
+            ? "border-gold/60 bg-gold/5"
+            : "border-border/40 hover:border-border/60"
+        )}
+      >
+        {!rawText ? (
+          <div className="flex flex-col items-center justify-center py-8 px-4">
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors",
+              isDragging ? "bg-gold/15" : "bg-secondary/30"
+            )}>
+              <Upload className={cn("w-5 h-5", isDragging ? "text-gold" : "text-muted-foreground")} />
+            </div>
+            <p className="text-xs text-foreground font-medium mb-1">
+              {isDragging ? "Drop file here" : "Drag & drop a text file"}
+            </p>
+            <p className="text-[10px] text-muted-foreground mb-3">
+              or click to browse • .txt, .csv, .list files • one IP/range per line
+            </p>
+            <label className="cursor-pointer px-4 py-1.5 rounded-lg text-xs font-medium glass-card hover:border-gold/30 text-foreground transition-all">
+              <input
+                type="file"
+                accept=".txt,.csv,.list,.conf,.log"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              Browse Files
+            </label>
+          </div>
+        ) : (
+          <div className="p-3">
+            {/* File info bar */}
+            {fileName && (
+              <div className="flex items-center justify-between mb-2 px-2 py-1.5 rounded-lg bg-secondary/20">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-gold" />
+                  <span className="text-xs text-foreground font-mono">{fileName}</span>
+                </div>
+                <button
+                  onClick={handleClear}
+                  className="p-1 rounded hover:bg-secondary/40 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            )}
+            {/* Text area */}
+            <textarea
+              value={rawText}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder="Paste IPs and CIDR ranges here, one per line...\n\n# Comments are supported\n192.168.1.1\n10.0.0.0/24\n8.8.8.8"
+              className="w-full h-32 px-3 py-2 text-xs font-mono rounded-lg bg-secondary/30 border border-border/30
+                text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50
+                resize-none"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Or paste manually */}
+      {!rawText && (
+        <div className="mb-4">
+          <p className="text-[10px] text-muted-foreground text-center mb-2">or paste directly</p>
+          <textarea
+            value={rawText}
+            onChange={(e) => handleTextChange(e.target.value)}
+            placeholder="192.168.1.1&#10;10.0.0.0/24&#10;# Comments are ignored&#10;8.8.8.8, 1.2.3.4"
+            className="w-full h-24 px-3 py-2 text-xs font-mono rounded-lg bg-secondary/30 border border-border/30
+              text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-gold/50
+              resize-none"
+          />
+        </div>
+      )}
+
+      {/* Parsed Summary */}
+      {parsedEntries.length > 0 && (
+        <div className="space-y-3">
+          {/* Stats bar */}
+          <div className="flex items-center gap-4 px-3 py-2 rounded-lg bg-secondary/20">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-severity-low" />
+              <span className="text-[10px] text-muted-foreground">
+                <span className="text-foreground font-medium">{validCount}</span> valid
+              </span>
+            </div>
+            {invalidCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-severity-critical" />
+                <span className="text-[10px] text-muted-foreground">
+                  <span className="text-severity-critical font-medium">{invalidCount}</span> invalid
+                </span>
+              </div>
+            )}
+            <div className="text-[10px] text-muted-foreground">
+              {ipCount} IPs • {rangeCount} ranges
+            </div>
+            <div className="flex-1" />
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="flex items-center gap-1 text-[10px] text-gold hover:text-gold/80 transition-colors"
+            >
+              {showPreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {showPreview ? "Hide" : "Preview"}
+            </button>
+          </div>
+
+          {/* Preview table */}
+          {showPreview && (
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-border/20">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-secondary/30 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-1.5 text-left">#</th>
+                    <th className="px-3 py-1.5 text-left">Address</th>
+                    <th className="px-3 py-1.5 text-left">Type</th>
+                    <th className="px-3 py-1.5 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedEntries.slice(0, 100).map((entry, i) => (
+                    <tr key={i} className={cn(
+                      "border-t border-border/10",
+                      !entry.valid && "bg-severity-critical/5"
+                    )}>
+                      <td className="px-3 py-1 text-muted-foreground font-mono">{i + 1}</td>
+                      <td className="px-3 py-1 font-mono text-foreground">{entry.address}</td>
+                      <td className="px-3 py-1">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[9px] font-medium uppercase",
+                          entry.type === "range" ? "bg-blue-500/10 text-blue-400" : "bg-gold/10 text-gold"
+                        )}>
+                          {entry.type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1">
+                        {entry.valid ? (
+                          <span className="text-severity-low flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Valid
+                          </span>
+                        ) : (
+                          <span className="text-severity-critical flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> {entry.error}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {parsedEntries.length > 100 && (
+                <p className="text-[10px] text-muted-foreground text-center py-2">
+                  Showing first 100 of {parsedEntries.length} entries
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Comment input */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-1">
+              Comment for all entries (optional)
+            </label>
+            <input
+              type="text"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="e.g. Imported from threat intel feed 2026-03-01"
+              className="w-full px-3 py-1.5 text-xs rounded-lg bg-secondary/50 border border-border
+                text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-gold/50
+                font-mono"
+            />
+          </div>
+
+          {/* Import button */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleImport}
+              disabled={validCount === 0 || bulkImportMutation.isPending}
+              className={cn(
+                "flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold border transition-all",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+                "bg-severity-critical/15 text-severity-critical hover:bg-severity-critical/25 border-severity-critical/30"
+              )}
+            >
+              {bulkImportMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              {bulkImportMutation.isPending
+                ? "Importing..."
+                : `Import ${validCount} ${validCount === 1 ? "Entry" : "Entries"}`}
+            </button>
+            <button
+              onClick={handleClear}
+              className="px-4 py-2 rounded-lg text-xs font-medium bg-secondary/50 text-muted-foreground
+                hover:bg-secondary/80 transition-colors"
+            >
+              Clear
+            </button>
+            {bulkImportMutation.isPending && (
+              <span className="text-[10px] text-muted-foreground">
+                Processing... commands are sent with 500ms delay between each
+              </span>
+            )}
+          </div>
+
+          {/* Import Results */}
+          {showResults && importResults.length > 0 && (
+            <div className="rounded-lg border border-border/20 overflow-hidden">
+              <div className="px-3 py-2 bg-secondary/20 flex items-center gap-3">
+                <span className="text-xs font-medium text-foreground">Import Results</span>
+                <div className="flex items-center gap-3 text-[10px]">
+                  <span className="text-severity-low">
+                    {importResults.filter(r => r.success).length} succeeded
+                  </span>
+                  {importResults.filter(r => !r.success).length > 0 && (
+                    <span className="text-severity-critical">
+                      {importResults.filter(r => !r.success).length} failed
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {importResults.filter(r => !r.success).map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-1.5 border-t border-border/10 bg-severity-critical/5">
+                    <AlertTriangle className="w-3 h-3 text-severity-critical shrink-0" />
+                    <span className="text-xs font-mono text-foreground">{r.address}</span>
+                    <span className="text-[10px] text-severity-critical">{r.error}</span>
+                  </div>
+                ))}
+                {importResults.filter(r => r.success).length > 0 && (
+                  <div className="flex items-center gap-3 px-3 py-1.5 border-t border-border/10">
+                    <CheckCircle2 className="w-3 h-3 text-severity-low shrink-0" />
+                    <span className="text-xs text-muted-foreground">
+                      {importResults.filter(r => r.success).length} entries successfully banned
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Format help */}
+      <div className="mt-4 px-3 py-2 rounded-lg bg-secondary/10 border border-border/10">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <strong className="text-foreground">Supported formats:</strong> One IP or CIDR range per line.
+          Comments with <code className="text-gold/80 font-mono">#</code> or <code className="text-gold/80 font-mono">//</code> are ignored.
+          Comma or space-separated entries on the same line are supported.
+          Duplicates are automatically removed. Max 500 entries per import.
+        </p>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────
 
 export default function ManagePage() {
   const utils = trpc.useUtils();
@@ -428,7 +858,10 @@ export default function ManagePage() {
             </p>
           </div>
 
-          {/* ─── Ban Section ─────────────────────────────── */}
+                {/* ─── Bulk Import Section ────────────────── */}
+          <BulkImportSection />
+
+          {/* ─── Ban Section ───────────────────────── */}
           <GlassCard className="mb-6 p-5">
             <div className="flex items-center gap-2 mb-5">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-severity-critical/10">

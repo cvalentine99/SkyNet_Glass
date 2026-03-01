@@ -327,3 +327,27 @@
 - [x] 0 TypeScript errors
 - [x] 34 tRPC routes verified intact (up from 28 — 6 new routes added)
 - [x] Only console warnings: Three.js Clock deprecation (harmless, from globe.gl dependency)
+
+## Phase 16: Bulk Ban Import from File
+
+### Backend
+- [x] Created bulkBanImport function in skynet-fetcher.ts — processes entries sequentially with 500ms delay
+- [x] Client-side parser (parseImportText) validates IPv4, CIDR /8-/32, rejects reserved IPs, strips comments, deduplicates
+- [x] Added tRPC route: skynet.bulkBanImport — accepts up to 500 entries, returns per-entry results
+- [x] Returns total/succeeded/failed/skipped counts plus per-entry error details
+
+### Frontend — Manage Page
+- [x] Added "Bulk Ban Import" section at top of Manage page (before Ban section)
+- [x] File upload dropzone with drag & drop + "Browse Files" button (.txt, .csv, .list, .conf, .log)
+- [x] Paste-directly textarea as alternative input method
+- [x] Live preview table with entry count, valid/invalid badges, type (IP/range) badges
+- [x] Comment field for all entries in the import batch
+- [x] Loading spinner during import with "Importing..." state
+- [x] Results panel showing succeeded/failed counts with per-entry error details
+- [x] Format help section explaining supported formats
+- [x] Clear button to reset all state
+
+### Tests
+- [x] Wrote 34 vitest tests for bulk import parser (IPs, CIDR, comments, dedup, validation, realistic files)
+- [x] All 202 tests pass across 9 test files
+- [x] 0 TypeScript errors, 35 tRPC routes verified intact
