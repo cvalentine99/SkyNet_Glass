@@ -1,0 +1,14 @@
+Screenshot of /logs page - diagnostic panel visible:
+- Header: "Syslog Viewer" with "Real-time Skynet firewall log entries"
+- DataSourceBadge: ERROR/STALE with "Last Updated: 3/2/2026, 5:26:53 AM"
+- Error text: "No router configuration found. Go to Settings and configure..."
+- Filters bar: Direction, IP Address, Protocol, Dst Port, Max Lines dropdowns
+- "0 entries" count
+- Red banner: "NO ROUTER CONFIGURED"
+- SSH Connection card: Config Found=NO, Router Address=—, SSH Status=FAILED, Fetch Duration=6ms
+- Log File Probes card: all 4 paths MISSING (/tmp/syslog.log, /jffs/syslog.log, /tmp/var/log/messages, /var/log/messages)
+- Search Pattern: grep -iE "BLOCKED.*INBOUND|BLOCKED.*OUTBOUND|BLOCKED.*INVALID|BLOCKED.*IOT|PRIOR1IN|PRIOR2IN|PRIOR1OUT|PRIOR2OUT"
+- What To Do section with actionable guidance
+- Action buttons: Retry Fetch, Open Settings, Copy Diagnostics
+- Build fingerprint visible at bottom-right
+- Right sidebar: "Log Summary - No summary available"

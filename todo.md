@@ -684,5 +684,14 @@
 - [x] Rewrite logs frontend: operator-grade diagnostic panel (SSH status, paths checked, file existence, readability, match count)
 - [x] Add actionable empty states: retry fetch, test SSH, open settings, copy diagnostics, show router prerequisites
 - [x] Handle all 5 cases: SSH failure, no files found, files unreadable, files empty, entries returned
-- [ ] Build fingerprint visible in screenshot proof
-- [ ] Honest status labels for all pages (FIXED / PARTIAL / BROKEN)
+- [x] Build fingerprint visible in screenshot proof
+- [x] Honest status labels for all pages (FIXED / PARTIAL / BROKEN)
+
+## Phase 34: Code Review Fixes (5 Issues)
+- [x] Delete decoy server/index.ts (bare Express static server with no tRPC)
+- [x] Fix getStats() to check cache age and surface staleness warning
+- [x] Fix auto-start polling to log real errors instead of swallowing them
+- [x] Encrypt SSH password at rest (AES-256 using JWT_SECRET as key)
+- [x] Add SSH liveness check before exec to avoid first-request-fails race
+- [x] Improve getDb() to log clear error when DATABASE_URL is missing/wrong
+- [ ] Build, test, push, checkpoint

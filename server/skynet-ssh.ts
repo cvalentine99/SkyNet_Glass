@@ -55,9 +55,18 @@ async function getConnection(config: SSHConfig): Promise<Client> {
     await closeConnection();
   }
 
-  // Return existing connection if alive
+  // Return existing connection if alive — verify with a lightweight check
   if (activeClient) {
-    return activeClient;
+    // Verify the underlying socket is still writable
+    const sock = (activeClient as any)._sock || (activeClient as any)._sshstream?._writableState;
+    const isAlive = activeClient.listenerCount('close') > 0;
+    if (isAlive) {
+      return activeClient;
+    }
+    // Connection is stale — clean up and reconnect
+    console.log("[SSH] Stale connection detected, reconnecting...");
+    activeClient = null;
+    activeConfig = null;
   }
 
   // If a connection attempt is already in progress, wait for it

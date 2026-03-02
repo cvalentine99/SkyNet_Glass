@@ -15,6 +15,7 @@ import {
   type InsertDevicePolicy,
 } from "../drizzle/schema";
 import type { SkynetStats } from "./skynet-parser";
+import { encryptField } from "./crypto-utils";
 
 // ─── Config CRUD ────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export async function upsertSkynetConfig(config: {
     pollingInterval: config.pollingInterval,
     pollingEnabled: config.pollingEnabled ? 1 : 0,
     username: config.username ?? null,
-    password: config.password ?? null,
+    password: config.password ? encryptField(config.password) : null,
   };
 
   // Only update target location if explicitly provided

@@ -25,6 +25,7 @@ import {
 } from "./skynet-db";
 import { checkAlerts, initAlertBaseline } from "./skynet-alerts";
 import { sshExec, type SSHConfig } from "./skynet-ssh";
+import { decryptField, isEncrypted } from "./crypto-utils";
 
 // ─── SSH Config Builder ────────────────────────────────────────
 
@@ -37,11 +38,20 @@ function buildSSHConfig(config: {
   username?: string | null;
   password?: string | null;
 }): SSHConfig {
+  let password: string | undefined;
+  if (config.password) {
+    if (isEncrypted(config.password)) {
+      const decrypted = decryptField(config.password);
+      password = decrypted ?? config.password; // fallback to raw if decrypt fails
+    } else {
+      password = config.password; // legacy plaintext — will be encrypted on next save
+    }
+  }
   return {
     host: config.routerAddress,
     port: config.sshPort ?? 22,
     username: config.username || "admin",
-    password: config.password || undefined,
+    password,
   };
 }
 
@@ -803,19 +813,30 @@ export function getPollingStatus() {
 
 // ─── Get stats (from cache or fresh fetch) ──────────────────
 
+/** Max cache age before we flag it as stale (10 minutes) */
+const CACHE_STALE_MS = 10 * 60 * 1000;
+
 export async function getStats(): Promise<{
   stats: SkynetStats | null;
   fetchedAt: Date | null;
   source: "cache" | "fresh" | "none";
+  cacheAgeMs: number | null;
+  isStale: boolean;
   error: string | null;
 }> {
   const cached = await getCachedStats();
   if (cached) {
+    const cacheAgeMs = Date.now() - cached.fetchedAt.getTime();
+    const isStale = cacheAgeMs > CACHE_STALE_MS;
     return {
       stats: cached.stats,
       fetchedAt: cached.fetchedAt,
       source: "cache",
-      error: null,
+      cacheAgeMs,
+      isStale,
+      error: isStale
+        ? `Cache is ${Math.round(cacheAgeMs / 60000)}m old. Polling may have stopped — check Settings or click Fetch Now.`
+        : null,
     };
   }
 
@@ -825,6 +846,8 @@ export async function getStats(): Promise<{
       stats: result.stats,
       fetchedAt: new Date(),
       source: "fresh",
+      cacheAgeMs: 0,
+      isStale: false,
       error: null,
     };
   }
@@ -833,6 +856,8 @@ export async function getStats(): Promise<{
     stats: null,
     fetchedAt: null,
     source: "none",
+    cacheAgeMs: null,
+    isStale: false,
     error: result.error,
   };
 }

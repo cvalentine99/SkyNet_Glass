@@ -7,13 +7,27 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+  if (_db) return _db;
+
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("[Database] DATABASE_URL is NOT SET. The app cannot store or read any data.");
+    console.error("[Database] Fix: run 'sudo bash install.sh' or set DATABASE_URL in your .env file.");
+    return null;
+  }
+
+  if (url.includes("YOUR_DB_PASSWORD") || url.includes("your_password") || url.includes("placeholder")) {
+    console.error(`[Database] DATABASE_URL contains a placeholder password. Replace it with a real MySQL password.`);
+    console.error("[Database] Fix: run 'sudo bash install.sh' to auto-generate credentials.");
+    return null;
+  }
+
+  try {
+    _db = drizzle(url);
+  } catch (error: any) {
+    console.error(`[Database] Failed to initialize: ${error.message}`);
+    console.error("[Database] Check that MySQL is running and DATABASE_URL is correct.");
+    _db = null;
   }
   return _db;
 }

@@ -80,8 +80,14 @@ async function startServer() {
     try {
       const { startPolling } = await import("../skynet-fetcher");
       await startPolling();
-    } catch (err) {
-      console.log("[Skynet] Auto-start polling skipped (no config or error)");
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (msg.includes("No router configuration")) {
+        console.log("[Skynet] Auto-start polling skipped: no router config saved yet. Go to /settings to configure.");
+      } else {
+        console.error(`[Skynet] Auto-start polling FAILED: ${msg}`);
+        console.error("[Skynet] Polling will not run until the issue is resolved. Check SSH credentials and router connectivity.");
+      }
     }
   });
 }
