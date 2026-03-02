@@ -648,3 +648,25 @@
 - [ ] P4: Add persisted UI state (collapse state + chart selector state via localStorage)
 - [ ] P5: Complete collapse behavior with click-to-collapse header toggles on GlassCard
 - [ ] P6: Replace ipsets IP Address text search with populated dropdown from real ipset data
+
+## Phase 31: Stop-Ship Remediation Order
+- [ ] P0: Add Last Updated timestamp on dashboard, threat map, logs, ipsets
+- [ ] P0: Add Data Source badge (LIVE_ROUTER_DATA / DB_CACHED_REAL_DATA / ERROR_STALE)
+- [ ] P0: If data is stale, UI must say so explicitly
+- [ ] P1: Replace ipsets text search with populated dropdown from live ipset entries
+- [ ] P1: Add drill-down detail on IP selection
+- [ ] P1: Add secondary actions: copy IP, threat-intel lookup, jump to logs, unban
+- [ ] P1: Handle large lists: search-as-you-type, virtualization/paging
+- [ ] P2: Make /logs actually populate with real syslog entries
+- [ ] P2: Add diagnostic banner if fetch/parsing fails
+- [ ] P2: Add empty-state with query executed, source checked, last fetch time, reason
+- [ ] P2: Add per-row actions: copy source IP, lookup IP, jump to manage/ipsets
+- [ ] P3: Remove Ban Reason, Domains, Intel from Recent Blocked Connections
+- [ ] P3: Move removed fields to expandable row details
+- [ ] P4: Simplify Threat Intelligence box - remove Severity, Ban Reason, Hits, Country, Intel, Action
+- [ ] P4: Redesign as cleaner intelligence overview
+- [ ] P5: Add real secondary actions across all pages (IP lookup, port lookup, copy, related logs)
+- [ ] P6: Sidebar expanded by default, persist state via localStorage
+- [ ] P7: Fix Connections sidebar label - rename to Recent Blocked or make it a real page
+- [ ] P8: /topology visual redesign - layout, spacing, node styling, hover states
+- [ ] P9: /manage layout - widen forms, improve spacing, group destructive actions

@@ -402,15 +402,28 @@ export function ThreatTable({ data }: ThreatTableProps) {
                       </td>
                       <td className="px-4 py-2.5 text-foreground">{ip.country}</td>
                       <td className="px-4 py-2.5 text-center">
-                        <a
-                          href={ip.alienVaultUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-gold hover:text-gold/80 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="flex items-center justify-center gap-2">
+                          <a
+                            href={ip.alienVaultUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-gold hover:text-gold/80 transition-colors"
+                            title="AlienVault OTX"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <a
+                            href={`https://www.abuseipdb.com/check/${encodeURIComponent(ip.ip)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
+                            title="AbuseIPDB"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <UnbanButton ip={ip.ip} onSuccess={handleUnbanSuccess} />

@@ -93,7 +93,12 @@ export function CountryDistributionChart({ data }: CountryDistributionChartProps
             width={85}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
-          <Bar dataKey="blocks" radius={[0, 4, 4, 0]} maxBarSize={20}>
+          <Bar dataKey="blocks" radius={[0, 4, 4, 0]} maxBarSize={20}
+            onClick={(entry: any) => {
+              if (entry?.country) window.location.href = `/ipsets?search=${encodeURIComponent(entry.country)}`;
+            }}
+            className="cursor-pointer"
+          >
             {data.map((_, index) => (
               <Cell key={index} fill={BAR_COLORS[index] || "#64748B"} fillOpacity={0.8} />
             ))}

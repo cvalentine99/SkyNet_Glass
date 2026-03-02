@@ -43,7 +43,7 @@ const navItems: SidebarItem[] = [
   { icon: Shield, label: "Dashboard", id: "dashboard", route: "/", shortcut: "1" },
   { icon: BarChart3, label: "Port Statistics", id: "ports", scrollTo: "section-ports", shortcut: "2" },
   { icon: Globe, label: "Threat Map", id: "threats", route: "/threatmap", shortcut: "3" },
-  { icon: Network, label: "Connections", id: "connections", scrollTo: "section-connections", shortcut: "4" },
+  { icon: Network, label: "Blocked Connections", id: "connections", scrollTo: "section-connections", shortcut: "4" },
   { icon: ShieldAlert, label: "Manage", id: "manage", route: "/manage", shortcut: "5" },
   { icon: ScrollText, label: "Logs", id: "logs", route: "/logs", shortcut: "6" },
   { icon: Database, label: "Ipsets", id: "ipsets", route: "/ipsets", shortcut: "7" },
@@ -62,7 +62,17 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection: propActiveSection, onExport }: SidebarProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => {
+    try {
+      const saved = localStorage.getItem("skynet-sidebar-expanded");
+      return saved !== null ? saved === "true" : true; // Default expanded
+    } catch { return true; }
+  });
+
+  // Persist expanded state
+  useEffect(() => {
+    try { localStorage.setItem("skynet-sidebar-expanded", String(expanded)); } catch {}
+  }, [expanded]);
   const [location, navigate] = useLocation();
   const [scrollSpySection, setScrollSpySection] = useState<string | null>(null);
 

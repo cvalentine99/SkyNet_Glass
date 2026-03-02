@@ -484,21 +484,47 @@ export async function fetchSyslog(options?: {
 }): Promise<{
   raw: string;
   error: string | null;
+  diagnostics?: string;
 }> {
   try {
     const config = await getSkynetConfig();
     if (!config) {
-      return { raw: "", error: "No router configuration found" };
+      return { raw: "", error: "No router configuration found. Go to Settings and configure your router connection." };
     }
 
     const ssh = buildSSHConfig(config);
     const maxLines = options?.maxLines || 500;
 
-    // Grep for Skynet patterns across all syslog files
-    const cmd = `tail -n ${maxLines} /tmp/syslog.log 2>/dev/null | grep -iE "PRIOR|skynet|DROP|REJECT|BLOCKED|DENY"`;
-    const result = await sshExec(ssh, cmd, { timeout: 15000 });
+    // Try multiple syslog paths — ASUS Merlin can store logs in different locations
+    const logPaths = [
+      "/tmp/syslog.log",
+      "/jffs/syslog.log",
+      "/tmp/var/log/messages",
+      "/var/log/messages",
+    ];
 
-    return { raw: result.stdout, error: null };
+    // First, check which log files exist and have Skynet entries
+    const checkCmd = `for f in ${logPaths.join(" ")}; do [ -f "$f" ] && echo "EXISTS:$f:$(wc -l < $f):$(grep -ciE 'BLOCKED|PRIOR' $f 2>/dev/null || echo 0)"; done`;
+    let diagnostics = "";
+    try {
+      const checkResult = await sshExec(ssh, checkCmd, { timeout: 10000 });
+      diagnostics = checkResult.stdout.trim();
+    } catch { /* ignore diagnostics failure */ }
+
+    // Grep for Skynet patterns across ALL syslog files, concatenated
+    const catCmd = logPaths.map(p => `cat ${p} 2>/dev/null`).join("; ");
+    const cmd = `{ ${catCmd}; } | grep -iE "BLOCKED.*INBOUND|BLOCKED.*OUTBOUND|BLOCKED.*INVALID|BLOCKED.*IOT|PRIOR1IN|PRIOR2IN|PRIOR1OUT|PRIOR2OUT" | tail -n ${maxLines}`;
+    const result = await sshExec(ssh, cmd, { timeout: 30000 });
+
+    if (!result.stdout.trim()) {
+      // No entries found — provide diagnostic info
+      const diagMsg = diagnostics
+        ? `Log files found: ${diagnostics}. No Skynet BLOCKED entries detected.`
+        : "No syslog files found with Skynet entries. Ensure Skynet logging is enabled on your router (Skynet > Settings > Logging).";
+      return { raw: "", error: null, diagnostics: diagMsg };
+    }
+
+    return { raw: result.stdout, error: null, diagnostics };
   } catch (err: any) {
     return { raw: "", error: `Failed to fetch syslog: ${formatSSHError(err)}` };
   }

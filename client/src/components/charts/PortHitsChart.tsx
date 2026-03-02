@@ -140,7 +140,12 @@ export function PortHitsChart({ inboundPortHits, sourcePortHits }: PortHitsChart
               width={100}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
-            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={20}>
+            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={20}
+              onClick={(entry: any) => {
+                if (entry?.port) window.open(`https://www.speedguide.net/port.php?port=${entry.port}`, '_blank');
+              }}
+              className="cursor-pointer"
+            >
               {data.map((_, index) => (
                 <Cell key={index} fill={barColors[index] || CHART_COLORS.slate} fillOpacity={0.85} />
               ))}
@@ -166,7 +171,12 @@ export function PortHitsChart({ inboundPortHits, sourcePortHits }: PortHitsChart
               tickLine={false}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
-            <Bar dataKey="hits" radius={[4, 4, 0, 0]} maxBarSize={32}>
+            <Bar dataKey="hits" radius={[4, 4, 0, 0]} maxBarSize={32}
+              onClick={(entry: any) => {
+                if (entry?.port) window.open(`https://www.speedguide.net/port.php?port=${entry.port}`, '_blank');
+              }}
+              className="cursor-pointer"
+            >
               {data.map((_, index) => (
                 <Cell key={index} fill={barColors[index] || CHART_COLORS.slate} fillOpacity={0.85} />
               ))}

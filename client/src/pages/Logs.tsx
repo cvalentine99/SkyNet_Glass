@@ -38,6 +38,7 @@ import {
   Wifi,
   Download,
 } from "lucide-react";
+import { DataSourceBadge } from "@/components/DataSourceBadge";
 
 type Direction = "INBOUND" | "OUTBOUND" | "INVALID" | "IOT" | "ALL";
 
@@ -146,6 +147,9 @@ export default function Logs() {
   const summary = data?.summary ?? null;
   const error = data?.error ?? null;
   const rawLineCount = data?.rawLineCount ?? 0;
+  const logsFetchedAt = data ? new Date() : null;
+  const logsHasData = entries.length > 0;
+  const logsIsLive = logsHasData && !error;
 
   // ─── GeoIP for visible entries ──────────────────────────
   const uniqueSrcIps = useMemo(() => {
@@ -214,6 +218,13 @@ export default function Logs() {
               <p className="text-sm text-muted-foreground">
                 Real-time Skynet firewall log entries
               </p>
+              <DataSourceBadge
+                fetchedAt={logsFetchedAt}
+                isLive={logsIsLive}
+                hasData={logsHasData}
+                error={error}
+                className="mt-1"
+              />
             </div>
           </div>
 
@@ -467,6 +478,16 @@ export default function Logs() {
                       ? "Try adjusting your filters to see more results"
                       : "Connect your router in Settings to see live syslog entries. Skynet must have logging enabled."}
                   </p>
+                  {/* Diagnostic info */}
+                  <div className="mt-4 text-[10px] text-muted-foreground/40 font-mono space-y-0.5">
+                    <p>Query: direction={direction}, maxLines={maxLines}{ipSearch ? `, ip=${ipSearch}` : ""}{protocol ? `, proto=${protocol}` : ""}{portFilter ? `, port=${portFilter}` : ""}</p>
+                    <p>Source: SSH → syslog grep on router</p>
+                    <p>Last fetch: {logsFetchedAt ? logsFetchedAt.toLocaleString() : "never"}</p>
+                    <p>Raw lines returned: {rawLineCount}</p>
+                    <p>Parsed entries: {entries.length}</p>
+                    <p>Grep pattern: BLOCKED.*INBOUND|BLOCKED.*OUTBOUND|PRIOR1IN|PRIOR2OUT</p>
+                    {data?.diagnostics && <p className="mt-1 text-severity-medium">Diagnostics: {data.diagnostics}</p>}
+                  </div>
                 </div>
               )}
 

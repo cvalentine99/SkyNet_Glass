@@ -309,6 +309,16 @@ function ConnectionDetail({ conn, direction }: { conn: ConnectionEntry; directio
               <Search className="w-3 h-3" />
               Check Ipsets
             </a>
+            <a
+              href={`https://www.abuseipdb.com/check/${encodeURIComponent(conn.ip)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold border
+                bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/20 transition-all"
+            >
+              <ExternalLink className="w-3 h-3" />
+              AbuseIPDB
+            </a>
           </div>
         </div>
 

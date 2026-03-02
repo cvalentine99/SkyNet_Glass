@@ -6,12 +6,16 @@ import { motion } from "framer-motion";
 import { RefreshCw, Clock, HardDrive, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { DataSourceBadge } from "@/components/DataSourceBadge";
 
 interface DashboardHeaderProps {
   monitoringSince: string;
   logSize: string;
   isUsingLiveData: boolean;
   hasConfig: boolean;
+  fetchedAt?: Date | string | null;
+  hasData?: boolean;
+  error?: string | null;
 }
 
 export function DashboardHeader({
@@ -19,6 +23,9 @@ export function DashboardHeader({
   logSize,
   isUsingLiveData,
   hasConfig,
+  fetchedAt,
+  hasData = false,
+  error,
 }: DashboardHeaderProps) {
   const fetchNow = trpc.skynet.fetchNow.useMutation({
     onSuccess: (result) => {
@@ -88,6 +95,14 @@ export function DashboardHeader({
             </div>
           )}
         </div>
+        {/* Data Source Badge */}
+        <DataSourceBadge
+          fetchedAt={fetchedAt ?? null}
+          isLive={isUsingLiveData}
+          hasData={hasData}
+          error={error}
+          className="mt-2"
+        />
       </div>
 
       <div className="flex items-center gap-2">

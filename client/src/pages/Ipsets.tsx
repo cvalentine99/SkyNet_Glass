@@ -32,7 +32,9 @@ import {
   Filter,
   Download,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
+import { DataSourceBadge } from "@/components/DataSourceBadge";
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -290,6 +292,13 @@ export default function Ipsets() {
           <p className="text-[11px] text-muted-foreground mt-1.5">
             Browse and manage Skynet's ban list and whitelist in real-time
           </p>
+          <DataSourceBadge
+            fetchedAt={activeQuery.dataUpdatedAt ? new Date(activeQuery.dataUpdatedAt) : null}
+            isLive={!!activeQuery.data && !error}
+            hasData={entries.length > 0}
+            error={error}
+            className="mt-1"
+          />
         </motion.header>
 
         {/* Tab Bar */}
@@ -510,6 +519,18 @@ export default function Ipsets() {
                                 <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] bg-blue-500/15 text-blue-400 font-medium">
                                   CIDR
                                 </span>
+                              )}
+                              {!entry.isRange && (
+                                <a
+                                  href={`https://www.abuseipdb.com/check/${entry.address}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="ml-1.5 inline-flex items-center text-gold/60 hover:text-gold transition-colors"
+                                  title="Check on AbuseIPDB"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
                               )}
                             </td>
                             <td className="px-3 py-2.5">

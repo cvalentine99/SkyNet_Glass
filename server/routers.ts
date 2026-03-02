@@ -405,6 +405,7 @@ export const appRouter = router({
             entries: [],
             summary: null,
             error: result.error,
+            diagnostics: result.diagnostics || null,
             rawLineCount: 0,
           };
         }
@@ -448,6 +449,7 @@ export const appRouter = router({
           })),
           summary,
           error: null,
+          diagnostics: result.diagnostics || null,
           rawLineCount: entries.length,
         };
       }),

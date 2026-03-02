@@ -126,6 +126,9 @@ export default function Home() {
             logSize={kpiData.logSize}
             isUsingLiveData={skynet.isUsingLiveData}
             hasConfig={skynet.hasConfig}
+            fetchedAt={skynet.fetchedAt}
+            hasData={skynet.hasData}
+            error={skynet.error}
           />
 
           {/* Refetching indicator */}
@@ -299,14 +302,7 @@ export default function Home() {
           <GlassCard delay={0.7} className="mb-6">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Skynet Firewall Statistics Dashboard</span>
-              <div className="flex items-center gap-4">
-                {skynet.fetchedAt && (
-                  <span className="font-mono tabular-nums">
-                    Last updated: {new Date(skynet.fetchedAt).toLocaleTimeString()}
-                  </span>
-                )}
-                <span className="font-mono tabular-nums">v1.0.0 — Obsidian Glass</span>
-              </div>
+              <span className="font-mono tabular-nums">v1.0.0 — Obsidian Glass</span>
             </div>
           </GlassCard>
         </div>

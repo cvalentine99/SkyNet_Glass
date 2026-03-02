@@ -144,7 +144,12 @@ export function OutboundBlocksChart({
               width={140}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(1 0 0 / 3%)" }} />
-            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={22}>
+            <Bar dataKey="hits" radius={[0, 4, 4, 0]} maxBarSize={22}
+              onClick={(entry: any) => {
+                if (entry?.ip) window.open(`https://www.abuseipdb.com/check/${encodeURIComponent(entry.ip)}`, '_blank');
+              }}
+              className="cursor-pointer"
+            >
               {currentTab.data.map((_, index) => {
                 // Gradient from bright to dim for visual ranking
                 const opacity = 0.95 - index * 0.065;
