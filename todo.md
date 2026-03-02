@@ -679,10 +679,10 @@
 - [x] Push to GitHub
 
 ## Phase 33: /logs Operator-Grade Overhaul
-- [ ] Audit current logs backend route and SSH fetch logic
-- [ ] Rewrite logs backend: return structured diagnostics (ssh_ok, paths_checked, files_found, files_readable, lines_matched, error details)
-- [ ] Rewrite logs frontend: operator-grade diagnostic panel (SSH status, paths checked, file existence, readability, match count)
-- [ ] Add actionable empty states: retry fetch, test SSH, open settings, copy diagnostics, show router prerequisites
-- [ ] Handle all 5 cases: SSH failure, no files found, files unreadable, files empty, entries returned
+- [x] Audit current logs backend route and SSH fetch logic
+- [x] Rewrite logs backend: return structured diagnostics (ssh_ok, paths_checked, files_found, files_readable, lines_matched, error details)
+- [x] Rewrite logs frontend: operator-grade diagnostic panel (SSH status, paths checked, file existence, readability, match count)
+- [x] Add actionable empty states: retry fetch, test SSH, open settings, copy diagnostics, show router prerequisites
+- [x] Handle all 5 cases: SSH failure, no files found, files unreadable, files empty, entries returned
 - [ ] Build fingerprint visible in screenshot proof
 - [ ] Honest status labels for all pages (FIXED / PARTIAL / BROKEN)
