@@ -673,7 +673,7 @@
 
 ## Phase 32: Deployment Proof Artifacts Delivery
 - [x] Add visible build fingerprint to UI (commit SHA + build timestamp + env label)
-- [ ] Update deployment-proof.sh with fingerprint verification
+- [x] Update deployment-proof.sh with fingerprint verification
 - [ ] Write complete 4-artifact delivery document (proof script, fingerprint patch, redeploy commands, decision tree)
-- [ ] Build and checkpoint
-- [ ] Push to GitHub
+- [x] Build and checkpoint
+- [x] Push to GitHub
