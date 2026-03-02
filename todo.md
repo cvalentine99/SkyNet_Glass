@@ -670,3 +670,10 @@
 - [ ] P7: Fix Connections sidebar label - rename to Recent Blocked or make it a real page
 - [ ] P8: /topology visual redesign - layout, spacing, node styling, hover states
 - [ ] P9: /manage layout - widen forms, improve spacing, group destructive actions
+
+## Phase 32: Deployment Proof Artifacts Delivery
+- [x] Add visible build fingerprint to UI (commit SHA + build timestamp + env label)
+- [ ] Update deployment-proof.sh with fingerprint verification
+- [ ] Write complete 4-artifact delivery document (proof script, fingerprint patch, redeploy commands, decision tree)
+- [ ] Build and checkpoint
+- [ ] Push to GitHub

@@ -13,6 +13,7 @@ import ThreatMap from "./pages/ThreatMap";
 import DnsSinkhole from "./pages/DnsSinkhole";
 import DevicePolicies from "./pages/DevicePolicies";
 import Topology from "./pages/Topology";
+import { BuildFingerprint } from "./components/BuildFingerprint";
 
 function Router() {
   return (
@@ -49,6 +50,7 @@ function App() {
             }}
           />
           <Router />
+          <BuildFingerprint />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
