@@ -474,59 +474,136 @@ export async function bulkBanImport(
 
 // ─── Syslog Fetcher ────────────────────────────────────────
 
+/** Structured diagnostics returned by fetchSyslog */
+export interface SyslogFileDiag {
+  path: string;
+  exists: boolean;
+  readable: boolean;
+  totalLines: number;
+  matchingLines: number;
+}
+
+export interface SyslogDiagnostics {
+  sshOk: boolean;
+  sshError: string | null;
+  configFound: boolean;
+  routerAddress: string | null;
+  pathsChecked: string[];
+  files: SyslogFileDiag[];
+  grepPattern: string;
+  totalMatchingLines: number;
+  fetchDurationMs: number;
+}
+
+export interface SyslogFetchResult {
+  raw: string;
+  error: string | null;
+  diagnostics: SyslogDiagnostics;
+}
+
+const SYSLOG_PATHS = [
+  "/tmp/syslog.log",
+  "/jffs/syslog.log",
+  "/tmp/var/log/messages",
+  "/var/log/messages",
+];
+
+const SYSLOG_GREP_PATTERN = "BLOCKED.*INBOUND|BLOCKED.*OUTBOUND|BLOCKED.*INVALID|BLOCKED.*IOT|PRIOR1IN|PRIOR2IN|PRIOR1OUT|PRIOR2OUT";
+
 /**
  * Fetch syslog from the router via SSH.
- * Directly reads and greps the log files — no more 2-step apply.cgi dance.
+ * Returns structured diagnostics for every step so the frontend
+ * can render an operator-grade diagnostic panel.
  */
 export async function fetchSyslog(options?: {
   logPath?: string;
   maxLines?: number;
-}): Promise<{
-  raw: string;
-  error: string | null;
-  diagnostics?: string;
-}> {
+}): Promise<SyslogFetchResult> {
+  const t0 = Date.now();
+  const maxLines = options?.maxLines || 500;
+
+  // Blank diagnostics skeleton
+  const diag: SyslogDiagnostics = {
+    sshOk: false,
+    sshError: null,
+    configFound: false,
+    routerAddress: null,
+    pathsChecked: [...SYSLOG_PATHS],
+    files: SYSLOG_PATHS.map(p => ({ path: p, exists: false, readable: false, totalLines: 0, matchingLines: 0 })),
+    grepPattern: SYSLOG_GREP_PATTERN,
+    totalMatchingLines: 0,
+    fetchDurationMs: 0,
+  };
+
   try {
     const config = await getSkynetConfig();
     if (!config) {
-      return { raw: "", error: "No router configuration found. Go to Settings and configure your router connection." };
+      diag.fetchDurationMs = Date.now() - t0;
+      return { raw: "", error: "No router configuration found. Go to Settings and configure your router connection.", diagnostics: diag };
     }
+    diag.configFound = true;
+    diag.routerAddress = config.routerAddress;
 
     const ssh = buildSSHConfig(config);
-    const maxLines = options?.maxLines || 500;
 
-    // Try multiple syslog paths — ASUS Merlin can store logs in different locations
-    const logPaths = [
-      "/tmp/syslog.log",
-      "/jffs/syslog.log",
-      "/tmp/var/log/messages",
-      "/var/log/messages",
-    ];
+    // Step 1: Probe each file — existence, readability, line counts, matching lines
+    // Single SSH command that outputs structured data per file
+    const probeCmd = SYSLOG_PATHS.map(p =>
+      `if [ -f "${p}" ]; then ` +
+        `TOTAL=$(wc -l < "${p}" 2>/dev/null || echo -1); ` +
+        `MATCH=$(grep -ciE '${SYSLOG_GREP_PATTERN}' "${p}" 2>/dev/null || echo 0); ` +
+        `if [ "$TOTAL" = "-1" ]; then echo "PROBE:${p}:exists:unreadable:0:0"; ` +
+        `else echo "PROBE:${p}:exists:readable:$TOTAL:$MATCH"; fi; ` +
+      `else echo "PROBE:${p}:missing:na:0:0"; fi`
+    ).join("; ");
 
-    // First, check which log files exist and have Skynet entries
-    const checkCmd = `for f in ${logPaths.join(" ")}; do [ -f "$f" ] && echo "EXISTS:$f:$(wc -l < $f):$(grep -ciE 'BLOCKED|PRIOR' $f 2>/dev/null || echo 0)"; done`;
-    let diagnostics = "";
     try {
-      const checkResult = await sshExec(ssh, checkCmd, { timeout: 10000 });
-      diagnostics = checkResult.stdout.trim();
-    } catch { /* ignore diagnostics failure */ }
+      const probeResult = await sshExec(ssh, probeCmd, { timeout: 15000 });
+      diag.sshOk = true;
 
-    // Grep for Skynet patterns across ALL syslog files, concatenated
-    const catCmd = logPaths.map(p => `cat ${p} 2>/dev/null`).join("; ");
-    const cmd = `{ ${catCmd}; } | grep -iE "BLOCKED.*INBOUND|BLOCKED.*OUTBOUND|BLOCKED.*INVALID|BLOCKED.*IOT|PRIOR1IN|PRIOR2IN|PRIOR1OUT|PRIOR2OUT" | tail -n ${maxLines}`;
-    const result = await sshExec(ssh, cmd, { timeout: 30000 });
-
-    if (!result.stdout.trim()) {
-      // No entries found — provide diagnostic info
-      const diagMsg = diagnostics
-        ? `Log files found: ${diagnostics}. No Skynet BLOCKED entries detected.`
-        : "No syslog files found with Skynet entries. Ensure Skynet logging is enabled on your router (Skynet > Settings > Logging).";
-      return { raw: "", error: null, diagnostics: diagMsg };
+      // Parse probe output
+      for (const line of probeResult.stdout.split("\n")) {
+        const m = line.match(/^PROBE:(.+?):(exists|missing):(readable|unreadable|na):(\d+):(\d+)$/);
+        if (!m) continue;
+        const fileDiag = diag.files.find(f => f.path === m[1]);
+        if (!fileDiag) continue;
+        fileDiag.exists = m[2] === "exists";
+        fileDiag.readable = m[3] === "readable";
+        fileDiag.totalLines = parseInt(m[4], 10);
+        fileDiag.matchingLines = parseInt(m[5], 10);
+      }
+    } catch (probeErr: any) {
+      // SSH failed at probe stage
+      diag.sshOk = false;
+      diag.sshError = formatSSHError(probeErr);
+      diag.fetchDurationMs = Date.now() - t0;
+      return { raw: "", error: `SSH connection failed: ${diag.sshError}`, diagnostics: diag };
     }
 
-    return { raw: result.stdout, error: null, diagnostics };
+    diag.totalMatchingLines = diag.files.reduce((s, f) => s + f.matchingLines, 0);
+
+    // Step 2: If no matching lines anywhere, return empty with full diagnostics
+    if (diag.totalMatchingLines === 0) {
+      diag.fetchDurationMs = Date.now() - t0;
+      return { raw: "", error: null, diagnostics: diag };
+    }
+
+    // Step 3: Fetch the actual matching lines
+    const catCmd = SYSLOG_PATHS.map(p => `cat ${p} 2>/dev/null`).join("; ");
+    const cmd = `{ ${catCmd}; } | grep -iE "${SYSLOG_GREP_PATTERN}" | tail -n ${maxLines}`;
+    const result = await sshExec(ssh, cmd, { timeout: 30000 });
+
+    diag.fetchDurationMs = Date.now() - t0;
+
+    if (!result.stdout.trim()) {
+      return { raw: "", error: null, diagnostics: diag };
+    }
+
+    return { raw: result.stdout, error: null, diagnostics: diag };
   } catch (err: any) {
-    return { raw: "", error: `Failed to fetch syslog: ${formatSSHError(err)}` };
+    diag.sshError = formatSSHError(err);
+    diag.fetchDurationMs = Date.now() - t0;
+    return { raw: "", error: `Failed to fetch syslog: ${diag.sshError}`, diagnostics: diag };
   }
 }
 

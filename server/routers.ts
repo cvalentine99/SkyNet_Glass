@@ -400,13 +400,14 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const result = await fetchSyslog({ maxLines: input.maxLines });
 
-        if (result.error) {
+        if (result.error && !result.raw) {
           return {
             entries: [],
             summary: null,
             error: result.error,
-            diagnostics: result.diagnostics || null,
+            diagnostics: result.diagnostics,
             rawLineCount: 0,
+            fetchedAt: new Date(),
           };
         }
 
@@ -448,9 +449,10 @@ export const appRouter = router({
             tcpFlags: e.tcpFlags,
           })),
           summary,
-          error: null,
-          diagnostics: result.diagnostics || null,
+          error: result.error,
+          diagnostics: result.diagnostics,
           rawLineCount: entries.length,
+          fetchedAt: new Date(),
         };
       }),
 
