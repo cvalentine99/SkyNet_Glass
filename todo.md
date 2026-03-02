@@ -639,3 +639,12 @@
 - [x] Fix Global Threat Map — completely black, no data plotted (replaced Google Maps with SVG react-simple-maps)
 - [ ] Fix Threat Intelligence table — cramped layout
 - [ ] Optimize entire layout for ultrawide monitors
+
+## Phase 30: Follow-On Enforcement Order
+- [ ] P0: Fix install.sh to handle existing MySQL users, fix .env generation, prove DB connectivity and polling
+- [ ] P1: Add chart layout switching (horizontal/vertical/pie) to PortHitsChart and OutboundBlocksChart
+- [ ] P2: Add chart grouping switching (IP Address / Country) to OutboundBlocksChart multilabel charts
+- [ ] P3: Add chart click-through (ports → speedguide.net, IPs → AbuseIPDB/AlienVault)
+- [ ] P4: Add persisted UI state (collapse state + chart selector state via localStorage)
+- [ ] P5: Complete collapse behavior with click-to-collapse header toggles on GlassCard
+- [ ] P6: Replace ipsets IP Address text search with populated dropdown from real ipset data
